@@ -13,6 +13,7 @@ import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -276,7 +277,12 @@ class MainActivity : Activity() {
         }
         pendingMesh = mesh
         status.text = "3D-сетка построена: ${mesh.triangleCount} треугольников. Можно вращать модель пальцем и экспортировать OBJ или STL."
-        val preview = MeshPreviewView(this, mesh)
+        val preview = MeshPreviewView(this, mesh).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.55f).toInt()
+            )
+        }
         val dialog = AlertDialog.Builder(this)
             .setTitle("3D-модель · ${mesh.triangleCount} треугольников")
             .setView(preview)

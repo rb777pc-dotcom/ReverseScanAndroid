@@ -228,7 +228,7 @@ class MainActivity : Activity() {
         topPanel.addView(status)
         topPanel.addView(hint)
         val legend = TextView(this).apply {
-            text = "ЗЕЛЁНЫЕ — накоплено   •   ЖЁЛТЫЕ — последний кадр глубины   •   без точек — не захвачено"
+            text = "ГОЛУБОЕ — уже собрано   •   ОРАНЖЕВОЕ — текущий кадр предмета"
             textSize = 10f
             setTextColor(Color.WHITE)
             setPadding(dp(4), dp(3), dp(4), dp(2))
@@ -940,6 +940,9 @@ private class ScanRenderer(
             }
 
             if (!isNewCapturePose(pose)) {
+                latestDepthCount = 0
+                latestDepthBuffer = null
+                publishProgress(FloatArray(0), 0, 0, lastSeedDistanceMetres)
                 val now = System.nanoTime()
                 if (now - lastNoMotionMessageNs > 1_500_000_000L) {
                     report("Кадр не добавлен: телефон почти не изменил ракурс. Медленно переместитесь вокруг неподвижного предмета.")

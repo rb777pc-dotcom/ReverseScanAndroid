@@ -6,22 +6,48 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 
 object MeshFileWriter {
     fun writeObj(mesh: MeshModel, output: OutputStream) {
-        OutputStreamWriter(output, Charsets.UTF_8).buffered().use { writer ->
-            writer.append("# ReverseScan triangle mesh; coordinates in metres\n")
-            writer.append("o ReverseScan\n")
-            var i = 0
-            while (i < mesh.vertices.size) {
-                writer.append(String.format(Locale.US, "v %.6f %.6f %.6f\n",
-                    mesh.vertices[i], mesh.vertices[i + 1], mesh.vertices[i + 2]))
-                i += 3
+        val vertexMap = HashMap<Long, Int>()
+        val uniqueVertices = ArrayList<FloatArray>()
+        val faces = ArrayList<IntArray>(mesh.triangleCount)
+        var offset = 0
+        while (offset + 8 < mesh.vertices.size) {
+            val face = IntArray(3)
+            for (corner in 0..2) {
+                val i = offset + corner * 3
+                val x = mesh.vertices[i]
+                val y = mesh.vertices[i + 1]
+                val z = mesh.vertices[i + 2]
+                // Weld duplicate triangle-soup vertices within 0.1 mm for connected OBJ topology.
+                val key = TsdfVolume.encode(
+                    (x * 10_000f).roundToInt(),
+                    (y * 10_000f).roundToInt(),
+                    (z * 10_000f).roundToInt()
+                )
+                val index = vertexMap[key] ?: run {
+                    val next = uniqueVertices.size + 1
+                    vertexMap[key] = next
+                    uniqueVertices.add(floatArrayOf(x, y, z))
+                    next
+                }
+                face[corner] = index
             }
-            var index = 1
-            repeat(mesh.triangleCount) {
-                writer.append("f $index ${index + 1} ${index + 2}\n")
-                index += 3
+            faces.add(face)
+            offset += 9
+        }
+
+        OutputStreamWriter(output, Charsets.UTF_8).buffered().use { writer ->
+            writer.append("# ReverseScan triangle mesh; coordinates in metres; vertices welded to 0.1 mm\n")
+            writer.append("o ReverseScan\n")
+            for (vertex in uniqueVertices) {
+                writer.append(String.format(Locale.US, "v %.6f %.6f %.6f\n",
+                    vertex[0], vertex[1], vertex[2]))
+            }
+            for (face in faces) {
+                writer.append("f ${face[0]} ${face[1]} ${face[2]}\n")
             }
         }
     }

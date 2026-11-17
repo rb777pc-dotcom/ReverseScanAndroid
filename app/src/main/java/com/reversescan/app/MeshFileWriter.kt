@@ -27,7 +27,6 @@ object MeshFileWriter {
     fun writeStl(mesh: MeshModel, output: OutputStream) {
         OutputStreamWriter(output, Charsets.US_ASCII).buffered().use { writer ->
             writer.append("solid ReverseScan_mm\n")
-            writer.append("  // STL coordinates exported in millimetres\n")
             var i = 0
             while (i + 8 < mesh.vertices.size) {
                 val ax = mesh.vertices[i]; val ay = mesh.vertices[i + 1]; val az = mesh.vertices[i + 2]

@@ -1,12 +1,13 @@
-# ReverseScan Android — v0.6.0
+# ReverseScan Android — v0.7.0
 
 Native Android 3D scanning prototype built with Kotlin and Google ARCore Depth API. Intended first for depth-capable ARCore devices such as Samsung Galaxy S24 Ultra.
 
-## Included in v0.6.0
+## Included in v0.7.0
 
 - ARCore live camera preview with display-geometry correction.
 - Camera autofocus requested through ARCore `FocusMode.AUTO`.
-- ARCore automatic depth acquisition with confidence filtering.
+- Dense ARCore Depth API map is the primary source; high-confidence raw depth measurements refine it where available. Low raw-confidence pixels no longer cause the entire frame to be discarded.
+- Scan status reports dense-map and raw-depth sample counts separately, and distinguishes unavailable depth from object/background segmentation failure.
 - On-camera target frame and depth-connected component segmentation seeded at the centre of the frame; distant background is rejected when it is separated by a depth discontinuity.
 - Live camera overlay: cyan points show retained scan data; orange points show the latest accepted target frame.
 - A live rotatable 3D mini-viewport shows the accumulated target and current frame separately, with accepted viewpoint and point counts.

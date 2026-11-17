@@ -1,7 +1,6 @@
 package com.reversescan.app
 
 import android.Manifest
-import android.content.Intent
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -44,7 +43,6 @@ class MainActivity : Activity() {
     private lateinit var captureButton: Button
     private lateinit var finishButton: Button
     private var activityResumed = false
-    private var pendingPlyFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,9 +56,7 @@ class MainActivity : Activity() {
             setEGLContextClientVersion(2)
             preserveEGLContextOnPause = true
         }
-        renderer = ScanRenderer(this, { message -> runOnUiThread { status.text = message } }) { file ->
-            runOnUiThread { launchPlySave(file) }
-        }
+        renderer = ScanRenderer(this) { message -> runOnUiThread { status.text = message } }
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
@@ -84,27 +80,18 @@ class MainActivity : Activity() {
         }
         captureButton = Button(this).apply {
             text = "Добавить ракурс"
-            isAllCaps = false
-            textSize = 12f
             isEnabled = false
             setOnClickListener { renderer.requestCapture() }
         }
         finishButton = Button(this).apply {
-            text = "Завершить и\nсохранить PLY"
-            isAllCaps = false
-            textSize = 12f
+            text = "Завершить и сохранить PLY"
             isEnabled = false
             setOnClickListener { renderer.requestExport() }
         }
-        val buttonRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        buttonRow.addView(captureButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 6 })
-        buttonRow.addView(finishButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = 6 })
         panel.addView(title)
         panel.addView(status)
-        panel.addView(buttonRow)
+        panel.addView(captureButton)
+        panel.addView(finishButton)
         val panelParams = FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
         root.addView(panel, panelParams)
         setContentView(root)
@@ -139,7 +126,6 @@ class MainActivity : Activity() {
                 return
             }
             config.depthMode = Config.DepthMode.AUTOMATIC
-            config.focusMode = Config.FocusMode.FIXED
             session.configure(config)
             arSession = session
             renderer.setSession(session)
@@ -150,65 +136,6 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
             status.text = "Ошибка запуска ARCore: ${e.localizedMessage ?: e.javaClass.simpleName}"
         }
-    }
-
-    private fun launchPlySave(file: File) {
-        pendingPlyFile = file
-        captureButton.isEnabled = false
-        finishButton.isEnabled = false
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/octet-stream"
-            putExtra(Intent.EXTRA_TITLE, file.name)
-        }
-        try {
-            startActivityForResult(intent, 200)
-        } catch (e: Exception) {
-            pendingPlyFile = null
-            captureButton.isEnabled = true
-            finishButton.isEnabled = true
-            status.text = "Не удалось открыть выбор места сохранения: ${e.localizedMessage}"
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 200) return
-        val source = pendingPlyFile
-        pendingPlyFile = null
-        val destination = data?.data
-        if (resultCode != RESULT_OK || destination == null || source == null) {
-            source?.delete()
-            captureButton.isEnabled = true
-            finishButton.isEnabled = true
-            status.text = "Сохранение отменено. Сканирование можно продолжить или сохранить позже."
-            return
-        }
-        status.text = "Сохраняю PLY-файл…"
-        Thread {
-            var error: String? = null
-            try {
-                val output = contentResolver.openOutputStream(destination)
-                    ?: throw IllegalStateException("Не удалось открыть файл для записи")
-                output.use { out -> source.inputStream().use { input -> input.copyTo(out) } }
-                source.delete()
-            } catch (e: Exception) {
-                error = e.localizedMessage ?: e.javaClass.simpleName
-            }
-            runOnUiThread {
-                if (error == null) {
-                    status.text = "PLY сохранён. Облако точек готово для 3D-редактора."
-                    captureButton.isEnabled = false
-                    finishButton.isEnabled = false
-                    finishButton.text = "PLY сохранён"
-                } else {
-                    status.text = "Ошибка сохранения PLY: $error"
-                    captureButton.isEnabled = true
-                    finishButton.isEnabled = true
-                }
-            }
-        }.start()
     }
 
     override fun onResume() {
@@ -239,11 +166,7 @@ class MainActivity : Activity() {
     }
 }
 
-private class ScanRenderer(
-    private val activity: Activity,
-    private val report: (String) -> Unit,
-    private val onPlyReady: (File) -> Unit
-) : Renderer {
+private class ScanRenderer(private val activity: Activity, private val report: (String) -> Unit) : Renderer {
     @Volatile private var session: Session? = null
     private val captureRequested = AtomicBoolean(false)
     private val exportRequested = AtomicBoolean(false)
@@ -316,16 +239,13 @@ private class ScanRenderer(
             val frame = active.update()
             if (frame.timestamp == 0L) return
             drawCamera(frame)
-            if (exportRequested.compareAndSet(true, false)) {
-                exportPly()
-                return
-            }
             if (frame.camera.trackingState != TrackingState.TRACKING) {
                 report("Поиск трекинга… Держите телефон в движении и избегайте однотонных поверхностей.")
                 return
             }
             frameCount++
             if (captureRequested.compareAndSet(true, false)) captureDepth(frame)
+            if (exportRequested.compareAndSet(true, false)) exportPly()
         } catch (e: Exception) {
             report("Ошибка кадра ARCore: ${e.localizedMessage ?: e.javaClass.simpleName}")
             cameraTextureBound = false
@@ -410,15 +330,16 @@ private class ScanRenderer(
     private fun exportPly() {
         if (points.isEmpty()) { report("Нет данных. Сначала добавьте хотя бы один ракурс."); return }
         try {
+            val dir = File(getAppExportDirectory(), "ReverseScan")
+            if (!dir.exists()) dir.mkdirs()
             val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val file = File(activity.cacheDir, "scan_$stamp.ply")
+            val file = File(dir, "scan_$stamp.ply")
             FileOutputStream(file).bufferedWriter().use { out ->
                 out.append("ply\nformat ascii 1.0\nelement vertex ${points.size}\n")
                 out.append("property float x\nproperty float y\nproperty float z\nend_header\n")
                 points.forEach { p -> out.append("${p[0]} ${p[1]} ${p[2]}\n") }
             }
-            report("Готово ${points.size} точек. Выберите папку и подтвердите сохранение PLY.")
-            onPlyReady(file)
+            report("Сохранено ${points.size} точек: ${file.absolutePath}. Это облако точек, не готовая STL-сетка.")
         } catch (e: Exception) {
             report("Ошибка сохранения PLY: ${e.localizedMessage}")
         }

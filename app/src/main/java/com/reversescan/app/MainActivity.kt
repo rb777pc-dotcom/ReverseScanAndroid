@@ -2,13 +2,15 @@ package com.reversescan.app
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Bundle
-import android.os.Environment
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -21,28 +23,33 @@ import com.google.ar.core.Frame
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
 import com.google.ar.core.Coordinates2d
-import java.io.File
-import java.io.FileOutputStream
+import java.io.OutputStreamWriter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLSurfaceView.Renderer
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 class MainActivity : Activity() {
     private var arSession: Session? = null
     private lateinit var glView: GLSurfaceView
     private lateinit var renderer: ScanRenderer
     private lateinit var status: TextView
+    private lateinit var scanButton: Button
     private lateinit var captureButton: Button
-    private lateinit var finishButton: Button
+    private lateinit var saveButton: Button
     private var activityResumed = false
+    private var installRequested = false
+    private var scanning = false
+    private var pendingExportPoints: List<FloatArray>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,25 +57,36 @@ class MainActivity : Activity() {
         refreshDeviceStatus()
     }
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
+
     private fun buildUi() {
         val root = FrameLayout(this)
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
             preserveEGLContextOnPause = true
         }
-        renderer = ScanRenderer(this) { message -> runOnUiThread { status.text = message } }
+        renderer = ScanRenderer(
+            this,
+            { message -> runOnUiThread { if (::status.isInitialized) status.text = message } },
+            { snapshot ->
+                runOnUiThread {
+                    pendingExportPoints = snapshot
+                    launchCreateDocument()
+                }
+            }
+        )
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(18, 18, 18, 18)
-            setBackgroundColor(0xDD101820.toInt())
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setBackgroundColor(0xE91A2230.toInt())
         }
         val title = TextView(this).apply {
-            text = "ReverseScan · CAPTURE"
-            textSize = 20f
+            text = "ReverseScan · 3D SCAN"
+            textSize = 18f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
         }
@@ -76,65 +94,197 @@ class MainActivity : Activity() {
             text = "Проверка ARCore…"
             textSize = 13f
             setTextColor(Color.WHITE)
-            setPadding(4, 10, 4, 10)
+            setPadding(dp(4), dp(8), dp(4), dp(8))
+            maxLines = 4
+        }
+        val hint = TextView(this).apply {
+            text = "Держите объект в кадре и медленно обходите его на расстоянии примерно 0,5–2 м. Для полного охвата снимайте со всех сторон."
+            textSize = 12f
+            setTextColor(0xFFD5DFEA.toInt())
+            setPadding(dp(4), 0, dp(4), dp(6))
+            maxLines = 3
+        }
+
+        val firstRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        scanButton = Button(this).apply {
+            text = "Начать скан"
+            isEnabled = false
+            setOnClickListener {
+                scanning = !scanning
+                renderer.setScanning(scanning)
+                text = if (scanning) "Пауза" else "Продолжить"
+                status.text = if (scanning) {
+                    "Идёт сканирование. Двигайтесь плавно, не вращайте телефон резко."
+                } else {
+                    "Сканирование приостановлено. Можно добавить ракурс или сохранить результат."
+                }
+            }
         }
         captureButton = Button(this).apply {
             text = "Добавить ракурс"
             isEnabled = false
             setOnClickListener { renderer.requestCapture() }
         }
-        finishButton = Button(this).apply {
-            text = "Завершить и сохранить PLY"
+        saveButton = Button(this).apply {
+            text = "Сохранить PLY"
             isEnabled = false
-            setOnClickListener { renderer.requestExport() }
+            setOnClickListener {
+                scanning = false
+                renderer.setScanning(false)
+                scanButton.text = "Продолжить"
+                renderer.requestExport()
+            }
         }
+        firstRow.addView(scanButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(3) })
+        firstRow.addView(captureButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
+        firstRow.addView(saveButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3) })
+
+        val resetButton = Button(this).apply {
+            text = "Новый скан — очистить точки"
+            isEnabled = false
+            setOnClickListener {
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Начать новый скан?")
+                    .setMessage("Текущие несохранённые точки будут удалены.")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Очистить") { _, _ ->
+                        scanning = false
+                        renderer.setScanning(false)
+                        scanButton.text = "Начать скан"
+                        renderer.requestReset()
+                    }
+                    .show()
+            }
+        }
+
         panel.addView(title)
         panel.addView(status)
-        panel.addView(captureButton)
-        panel.addView(finishButton)
-        val panelParams = FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
+        panel.addView(hint)
+        panel.addView(firstRow)
+        panel.addView(resetButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
+
+        val panelParams = FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
+            leftMargin = dp(8)
+            rightMargin = dp(8)
+            bottomMargin = dp(8)
+        }
         root.addView(panel, panelParams)
         setContentView(root)
+        resetButton.tag = "reset"
+        panel.post {
+            scanButton.isEnabled = arSession != null
+            captureButton.isEnabled = arSession != null
+            saveButton.isEnabled = arSession != null
+            resetButton.isEnabled = arSession != null
+        }
     }
 
     private fun refreshDeviceStatus() {
         val availability = try { ArCoreApk.getInstance().checkAvailability(this) } catch (_: Exception) { null }
-        status.text = when {
-            availability == null -> "Не удалось проверить ARCore. Установите Google Play Services for AR."
-            availability.isSupported -> "ARCore поддерживается. Нажмите «Добавить ракурс» после запуска камеры."
-            availability.isTransient -> "ARCore проверяет совместимость. Повторите запуск позже."
-            else -> "ARCore недоступен. Проверьте поддержку и установите Google Play Services for AR."
-        }
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            status.text = "Нужно разрешить доступ к камере."
             requestPermissions(arrayOf(Manifest.permission.CAMERA), 100)
-        } else if (availability?.isSupported == true) startArSession()
+            return
+        }
+        when {
+            availability == null -> status.text = "Не удалось проверить ARCore. Установите Google Play Services for AR."
+            availability.isSupported -> startArSession()
+            availability.isTransient -> status.text = "ARCore проверяет совместимость. Подождите и откройте приложение снова."
+            else -> status.text = "Это устройство или текущая конфигурация не поддерживает ARCore."
+        }
     }
 
     private fun startArSession() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), 100)
+            return
+        }
         try {
             val install = ArCoreApk.getInstance().requestInstall(this, true)
             if (install == ArCoreApk.InstallStatus.INSTALL_REQUESTED) {
-                status.text = "Установите/обновите Google Play Services for AR и откройте приложение снова."
+                installRequested = true
+                status.text = "Устанавливается Google Play Services for AR. После установки приложение продолжит запуск."
                 return
             }
+            installRequested = false
             arSession?.close()
             val session = Session(this)
             val config = session.config
             if (!session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
                 session.close()
-                status.text = "Depth API не поддерживается текущей конфигурацией устройства."
+                status.text = "На этом устройстве ARCore Depth API недоступен. Сканирование невозможно."
                 return
             }
             config.depthMode = Config.DepthMode.AUTOMATIC
+            config.focusMode = Config.FocusMode.AUTO
             session.configure(config)
             arSession = session
             renderer.setSession(session)
             if (activityResumed) session.resume()
+            scanButton.isEnabled = true
             captureButton.isEnabled = true
-            finishButton.isEnabled = true
-            status.text = "Камера запускается. Медленно обойдите объект; добавляйте ракурсы с разных сторон."
+            saveButton.isEnabled = true
+            status.text = "Камера готова. Автофокус включён. Нажмите «Начать скан» или добавляйте ракурсы вручную."
         } catch (e: Exception) {
-            status.text = "Ошибка запуска ARCore: ${e.localizedMessage ?: e.javaClass.simpleName}"
+            arSession?.close()
+            arSession = null
+            status.text = "Ошибка запуска ARCore: \${e.localizedMessage ?: e.javaClass.simpleName}"
+        }
+    }
+
+    private fun launchCreateDocument() {
+        val points = pendingExportPoints
+        if (points.isNullOrEmpty()) {
+            status.text = "Нет точек для сохранения. Сначала выполните сканирование."
+            return
+        }
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/octet-stream"
+            putExtra(Intent.EXTRA_TITLE, "ReverseScan_$stamp.ply")
+        }
+        try {
+            startActivityForResult(intent, CREATE_PLY_REQUEST)
+        } catch (e: Exception) {
+            pendingExportPoints = null
+            status.text = "Не удалось открыть выбор места сохранения: \${e.localizedMessage}"
+        }
+    }
+
+    @Deprecated("Using the system document picker for broad Android compatibility")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != CREATE_PLY_REQUEST) return
+        val uri: Uri? = if (resultCode == RESULT_OK) data?.data else null
+        val points = pendingExportPoints
+        pendingExportPoints = null
+        if (uri == null || points.isNullOrEmpty()) {
+            status.text = "Сохранение отменено."
+            return
+        }
+        try {
+            val output = contentResolver.openOutputStream(uri)
+                ?: throw IllegalStateException("Не удалось открыть выбранный файл")
+            OutputStreamWriter(output, Charsets.UTF_8).buffered().use { writer ->
+                writer.append("ply\\n")
+                writer.append("format ascii 1.0\\n")
+                writer.append("comment Generated by ReverseScan\\n")
+                writer.append("element vertex \${points.size}\\n")
+                writer.append("property float x\\nproperty float y\\nproperty float z\\n")
+                writer.append("end_header\\n")
+                points.forEach { p ->
+                    writer.append(p[0].toString()).append(' ')
+                        .append(p[1].toString()).append(' ')
+                        .append(p[2].toString()).append('\\n')
+                }
+            }
+            status.text = "Файл PLY сохранён: \${points.size} точек. Его можно открыть в MeshLab или Blender. Это облако точек, не готовая полигональная сетка."
+        } catch (e: Exception) {
+            status.text = "Ошибка записи PLY: \${e.localizedMessage ?: e.javaClass.simpleName}"
         }
     }
 
@@ -142,7 +292,13 @@ class MainActivity : Activity() {
         super.onResume()
         activityResumed = true
         if (::glView.isInitialized) glView.onResume()
-        try { arSession?.resume() } catch (e: Exception) { status.text = "Не удалось возобновить ARCore: ${e.localizedMessage}" }
+        if (installRequested) {
+            startArSession()
+        } else {
+            try { arSession?.resume() } catch (e: Exception) {
+                status.text = "Не удалось возобновить ARCore: \${e.localizedMessage}"
+            }
+        }
     }
 
     override fun onPause() {
@@ -154,39 +310,54 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startArSession()
-        else status.text = "Для сканирования необходимо разрешить доступ к камере."
+        if (requestCode == 100 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startArSession()
+        } else if (requestCode == 100) {
+            status.text = "Без разрешения на камеру сканирование невозможно."
+        }
     }
 
     override fun onDestroy() {
-        renderer.setSession(null)
+        if (::renderer.isInitialized) renderer.setSession(null)
         arSession?.close()
         arSession = null
         super.onDestroy()
     }
+
+    companion object {
+        private const val CREATE_PLY_REQUEST = 501
+    }
 }
 
-private class ScanRenderer(private val activity: Activity, private val report: (String) -> Unit) : Renderer {
+private class ScanRenderer(
+    private val activity: Activity,
+    private val report: (String) -> Unit,
+    private val exportReady: (List<FloatArray>) -> Unit
+) : Renderer {
     @Volatile private var session: Session? = null
     private val captureRequested = AtomicBoolean(false)
     private val exportRequested = AtomicBoolean(false)
-    private val points = ArrayList<FloatArray>()
+    private val resetRequested = AtomicBoolean(false)
+    private val scanning = AtomicBoolean(false)
+    private val points = LinkedHashMap<Long, FloatArray>()
+    private var viewsCaptured = 0
     private var textureId = -1
     private var program = 0
     private var positionHandle = 0
     private var texCoordHandle = 0
     private var textureHandle = 0
     private var cameraTextureBound = false
-    private val vertices = floatArrayOf(-1f,-1f, 1f,-1f, -1f,1f, 1f,1f)
+    private val vertices = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)
     private val texCoords = FloatArray(8)
     private lateinit var vertexBuffer: FloatBuffer
     private lateinit var texBuffer: FloatBuffer
-    private var frameCount = 0
     private var surfaceWidth = 0
     private var surfaceHeight = 0
     private var lastDisplayRotation = -1
     private var lastSurfaceWidth = -1
     private var lastSurfaceHeight = -1
+    private var lastAutoCaptureNs = 0L
+    private var lastTrackingMessageNs = 0L
 
     fun setSession(value: Session?) {
         session = value
@@ -195,8 +366,11 @@ private class ScanRenderer(private val activity: Activity, private val report: (
         lastSurfaceWidth = -1
         lastSurfaceHeight = -1
     }
+
+    fun setScanning(value: Boolean) { scanning.set(value) }
     fun requestCapture() { captureRequested.set(true) }
     fun requestExport() { exportRequested.set(true) }
+    fun requestReset() { resetRequested.set(true) }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0f, 0f, 0f, 1f)
@@ -228,8 +402,8 @@ private class ScanRenderer(private val activity: Activity, private val report: (
             val rotation = activity.windowManager.defaultDisplay.rotation
             if (surfaceWidth > 0 && surfaceHeight > 0 &&
                 (rotation != lastDisplayRotation ||
-                 surfaceWidth != lastSurfaceWidth ||
-                 surfaceHeight != lastSurfaceHeight)) {
+                    surfaceWidth != lastSurfaceWidth ||
+                    surfaceHeight != lastSurfaceHeight)) {
                 active.setDisplayGeometry(rotation, surfaceWidth, surfaceHeight)
                 lastDisplayRotation = rotation
                 lastSurfaceWidth = surfaceWidth
@@ -239,15 +413,45 @@ private class ScanRenderer(private val activity: Activity, private val report: (
             val frame = active.update()
             if (frame.timestamp == 0L) return
             drawCamera(frame)
+
+            if (resetRequested.compareAndSet(true, false)) {
+                points.clear()
+                viewsCaptured = 0
+                captureRequested.set(false)
+                exportRequested.set(false)
+                report("Новый скан готов. Точки очищены.")
+            }
+
             if (frame.camera.trackingState != TrackingState.TRACKING) {
-                report("Поиск трекинга… Держите телефон в движении и избегайте однотонных поверхностей.")
+                val now = System.nanoTime()
+                if (now - lastTrackingMessageNs > 1_000_000_000L) {
+                    report("Поиск трекинга ARCore… Медленно перемещайте телефон и наведите камеру на текстурированную поверхность.")
+                    lastTrackingMessageNs = now
+                }
                 return
             }
-            frameCount++
-            if (captureRequested.compareAndSet(true, false)) captureDepth(frame)
-            if (exportRequested.compareAndSet(true, false)) exportPly()
+
+            if (captureRequested.compareAndSet(true, false)) {
+                captureDepth(frame)
+            } else if (scanning.get()) {
+                val now = System.nanoTime()
+                if (now - lastAutoCaptureNs >= AUTO_CAPTURE_INTERVAL_NS) {
+                    lastAutoCaptureNs = now
+                    captureDepth(frame)
+                }
+            }
+
+            if (exportRequested.compareAndSet(true, false)) {
+                if (points.isEmpty()) {
+                    report("Нет точек для сохранения. Сначала добавьте ракурс или запустите сканирование.")
+                } else {
+                    scanning.set(false)
+                    report("Подготовка PLY: \${points.size} точек…")
+                    exportReady(points.values.toList())
+                }
+            }
         } catch (e: Exception) {
-            report("Ошибка кадра ARCore: ${e.localizedMessage ?: e.javaClass.simpleName}")
+            report("Ошибка ARCore: \${e.localizedMessage ?: e.javaClass.simpleName}")
             cameraTextureBound = false
         }
     }
@@ -255,10 +459,16 @@ private class ScanRenderer(private val activity: Activity, private val report: (
     private fun drawCamera(frame: Frame) {
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glDepthMask(false)
-        val input = vertices
         val transformed = FloatArray(8)
-        frame.transformCoordinates2d(Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES, input, Coordinates2d.TEXTURE_NORMALIZED, transformed)
-        texBuffer.clear(); texBuffer.put(transformed); texBuffer.position(0)
+        frame.transformCoordinates2d(
+            Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES,
+            vertices,
+            Coordinates2d.TEXTURE_NORMALIZED,
+            transformed
+        )
+        texBuffer.clear()
+        texBuffer.put(transformed)
+        texBuffer.position(0)
         GLES20.glUseProgram(program)
         GLES20.glEnableVertexAttribArray(positionHandle)
         GLES20.glVertexAttribPointer(positionHandle, 2, GLES20.GL_FLOAT, false, 0, vertexBuffer)
@@ -270,6 +480,7 @@ private class ScanRenderer(private val activity: Activity, private val report: (
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         GLES20.glDisableVertexAttribArray(positionHandle)
         GLES20.glDisableVertexAttribArray(texCoordHandle)
+        GLES20.glDepthMask(true)
     }
 
     private fun captureDepth(frame: Frame) {
@@ -289,63 +500,82 @@ private class ScanRenderer(private val activity: Activity, private val report: (
             val confRowStride = confidencePlane.rowStride
             val confPixelStride = confidencePlane.pixelStride
             val intrinsics = frame.camera.imageIntrinsics
-            val focal = FloatArray(2); val principal = FloatArray(2); val imageSize = IntArray(2)
+            val focal = FloatArray(2)
+            val principal = FloatArray(2)
+            val imageSize = IntArray(2)
             intrinsics.getFocalLength(focal, 0)
             intrinsics.getPrincipalPoint(principal, 0)
             intrinsics.getImageDimensions(imageSize, 0)
+            if (focal[0] <= 0f || focal[1] <= 0f) {
+                report("Камера ещё не передала калибровку. Повторите ракурс через секунду.")
+                return
+            }
             val sx = width.toFloat() / max(1, imageSize[0])
             val sy = height.toFloat() / max(1, imageSize[1])
-            val fx = focal[0] * sx; val fy = focal[1] * sy
-            val cx = principal[0] * sx; val cy = principal[1] * sy
+            val fx = focal[0] * sx
+            val fy = focal[1] * sy
+            val cx = principal[0] * sx
+            val cy = principal[1] * sy
             val pose = frame.camera.pose
-            var accepted = 0
-            val step = 3
+            var valid = 0
+            var added = 0
+            val step = if (width >= 320) 3 else 2
+
             for (v in 0 until height step step) {
                 for (u in 0 until width step step) {
                     val dOffset = v * depthRowStride + u * depthPixelStride
-                    if (dOffset + 1 >= depth.limit()) continue
+                    if (dOffset < 0 || dOffset + 1 >= depth.limit()) continue
                     val packed = depth.getShort(dOffset).toInt() and 0xFFFF
                     val millimetres = packed and 0x1FFF
-                    if (millimetres <= 0) continue
+                    if (millimetres == 0) continue
                     val cOffset = v * confRowStride + u * confPixelStride
-                    if (cOffset >= confidence.limit()) continue
+                    if (cOffset < 0 || cOffset >= confidence.limit()) continue
                     val conf = confidence.get(cOffset).toInt() and 0xFF
-                    if (conf < 160) continue
+                    if (conf < MIN_CONFIDENCE) continue
                     val z = millimetres / 1000f
+                    if (z < MIN_DEPTH_METRES || z > MAX_DEPTH_METRES) continue
+                    valid++
                     val x = (u - cx) * z / fx
                     val y = (v - cy) * z / fy
                     val world = pose.transformPoint(floatArrayOf(x, -y, -z))
-                    points.add(floatArrayOf(world[0], world[1], world[2]))
-                    accepted++
+                    val key = voxelKey(world[0], world[1], world[2])
+                    if (!points.containsKey(key) && points.size < MAX_POINTS) {
+                        points[key] = floatArrayOf(world[0], world[1], world[2])
+                        added++
+                    }
                 }
             }
-            report("Ракурс добавлен: +$accepted точек. Всего: ${points.size}. Продолжайте обход объекта.")
-        } catch (e: Exception) {
-            report("Не удалось получить Raw Depth: ${e.localizedMessage ?: "проверьте освещение и расстояние"}")
-        } finally {
-            depthImage?.close(); confidenceImage?.close()
-        }
-    }
 
-    private fun exportPly() {
-        if (points.isEmpty()) { report("Нет данных. Сначала добавьте хотя бы один ракурс."); return }
-        try {
-            val dir = File(getAppExportDirectory(), "ReverseScan")
-            if (!dir.exists()) dir.mkdirs()
-            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val file = File(dir, "scan_$stamp.ply")
-            FileOutputStream(file).bufferedWriter().use { out ->
-                out.append("ply\nformat ascii 1.0\nelement vertex ${points.size}\n")
-                out.append("property float x\nproperty float y\nproperty float z\nend_header\n")
-                points.forEach { p -> out.append("${p[0]} ${p[1]} ${p[2]}\n") }
+            if (added > 0) {
+                viewsCaptured++
+                report("Ракурс #\${viewsCaptured}: +\${added} новых точек · всего \${points.size}. Продолжайте медленный обход.")
+            } else if (valid == 0) {
+                report("Мало качественных данных глубины. Добавьте света, держите объект в кадре на расстоянии 0,5–2 м.")
+            } else {
+                report("Новых точек почти нет. Смените угол обзора и направьте камеру на ещё не просканированную сторону.")
             }
-            report("Сохранено ${points.size} точек: ${file.absolutePath}. Это облако точек, не готовая STL-сетка.")
+
+            if (points.size >= MAX_POINTS) {
+                scanning.set(false)
+                report("Достигнут лимит \${MAX_POINTS} точек. Сохраните результат в PLY.")
+            }
         } catch (e: Exception) {
-            report("Ошибка сохранения PLY: ${e.localizedMessage}")
+            report("Не удалось получить глубину: \${e.localizedMessage ?: "попробуйте изменить расстояние и освещение"}")
+        } finally {
+            depthImage?.close()
+            confidenceImage?.close()
         }
     }
 
-    private fun getAppExportDirectory(): File = activity.getExternalFilesDir(null) ?: activity.filesDir
+    private fun voxelKey(x: Float, y: Float, z: Float): Long {
+        val mask = 0x1FFFFF
+        val qx = (x / VOXEL_SIZE_METRES).roundToInt().coerceIn(-1_048_576, 1_048_575)
+        val qy = (y / VOXEL_SIZE_METRES).roundToInt().coerceIn(-1_048_576, 1_048_575)
+        val qz = (z / VOXEL_SIZE_METRES).roundToInt().coerceIn(-1_048_576, 1_048_575)
+        return ((qx.toLong() and mask) shl 42) or
+            ((qy.toLong() and mask) shl 21) or
+            (qz.toLong() and mask)
+    }
 
     private fun createExternalTexture(): Int {
         val textures = IntArray(1)
@@ -362,20 +592,31 @@ private class ScanRenderer(private val activity: Activity, private val report: (
         val vs = compileShader(GLES20.GL_VERTEX_SHADER, vertex)
         val fs = compileShader(GLES20.GL_FRAGMENT_SHADER, fragment)
         return GLES20.glCreateProgram().also { p ->
-            GLES20.glAttachShader(p, vs); GLES20.glAttachShader(p, fs); GLES20.glLinkProgram(p)
-            val status = IntArray(1); GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, status, 0)
-            if (status[0] == 0) throw RuntimeException("OpenGL link error: ${GLES20.glGetProgramInfoLog(p)}")
+            GLES20.glAttachShader(p, vs)
+            GLES20.glAttachShader(p, fs)
+            GLES20.glLinkProgram(p)
+            val status = IntArray(1)
+            GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, status, 0)
+            if (status[0] == 0) throw RuntimeException("OpenGL link error: \${GLES20.glGetProgramInfoLog(p)}")
         }
     }
 
     private fun compileShader(type: Int, source: String): Int = GLES20.glCreateShader(type).also { shader ->
-        GLES20.glShaderSource(shader, source); GLES20.glCompileShader(shader)
-        val status = IntArray(1); GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
-        if (status[0] == 0) throw RuntimeException("OpenGL shader error: ${GLES20.glGetShaderInfoLog(shader)}")
+        GLES20.glShaderSource(shader, source)
+        GLES20.glCompileShader(shader)
+        val status = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
+        if (status[0] == 0) throw RuntimeException("OpenGL shader error: \${GLES20.glGetShaderInfoLog(shader)}")
     }
 
     companion object {
+        private const val MIN_CONFIDENCE = 128
+        private const val MIN_DEPTH_METRES = 0.25f
+        private const val MAX_DEPTH_METRES = 5.0f
+        private const val VOXEL_SIZE_METRES = 0.008f
+        private const val MAX_POINTS = 600_000
+        private const val AUTO_CAPTURE_INTERVAL_NS = 350_000_000L
         private const val VERTEX_SHADER = "attribute vec4 aPosition; attribute vec2 aTexCoord; varying vec2 vTexCoord; void main(){ gl_Position=aPosition; vTexCoord=aTexCoord; }"
-        private const val FRAGMENT_SHADER = "#extension GL_OES_EGL_image_external : require\nprecision mediump float; uniform samplerExternalOES sTexture; varying vec2 vTexCoord; void main(){ gl_FragColor=texture2D(sTexture,vTexCoord); }"
+        private const val FRAGMENT_SHADER = "#extension GL_OES_EGL_image_external : require\\nprecision mediump float; uniform samplerExternalOES sTexture; varying vec2 vTexCoord; void main(){ gl_FragColor=texture2D(sTexture, vTexCoord); }"
     }
 }

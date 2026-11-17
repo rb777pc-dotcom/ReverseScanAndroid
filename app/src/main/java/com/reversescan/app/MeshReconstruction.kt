@@ -259,7 +259,7 @@ object MeshReconstructor {
                 val b = edge(inside[0], outside[1])
                 val c = edge(inside[1], outside[0])
                 val d = edge(inside[1], outside[1])
-                out.addTriangle(a, b, c)
+                emit(a, b, c)
                 emit(b, d, c)
             }
         }

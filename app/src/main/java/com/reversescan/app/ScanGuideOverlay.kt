@@ -22,6 +22,12 @@ class ScanGuideOverlay(context: Context) : View(context) {
     private val cornerPaint = Paint(guidePaint).apply {
         strokeWidth = 4f * resources.displayMetrics.density
     }
+    private val centerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF71F0C1.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = 2f * resources.displayMetrics.density
+        setShadowLayer(4f * resources.displayMetrics.density, 0f, 0f, Color.BLACK)
+    }
 
     init {
         setWillNotDraw(false)
@@ -48,7 +54,15 @@ class ScanGuideOverlay(context: Context) : View(context) {
         canvas.drawLine(right - corner, bottom, right, bottom, cornerPaint)
         canvas.drawLine(right, bottom - corner, right, bottom, cornerPaint)
 
-        val label = "ДЕРЖИТЕ ПРЕДМЕТ ВНУТРИ РАМКИ"
+        // The centre mark is the depth-segmentation seed: keep the object itself here.
+        val centerX = width * 0.5f
+        val centerY = height * 0.5f
+        val centerRadius = 8f * resources.displayMetrics.density
+        canvas.drawCircle(centerX, centerY, centerRadius, centerPaint)
+        canvas.drawLine(centerX - centerRadius * 1.8f, centerY, centerX + centerRadius * 1.8f, centerY, centerPaint)
+        canvas.drawLine(centerX, centerY - centerRadius * 1.8f, centerX, centerY + centerRadius * 1.8f, centerPaint)
+
+        val label = "ЦЕНТР — НАВЕДИТЕ НА ПРЕДМЕТ"
         val labelWidth = labelPaint.measureText(label)
         canvas.drawText(label, (width - labelWidth) * 0.5f, top - 10f * resources.displayMetrics.density, labelPaint)
     }

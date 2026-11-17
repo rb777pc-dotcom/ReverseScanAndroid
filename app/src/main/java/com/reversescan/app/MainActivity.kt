@@ -530,13 +530,23 @@ private class ScanRenderer(
                 } else {
                     report("Строю поверхность из ${volumeSnapshot.size} объёмных ячеек. Это может занять время…")
                     Thread({
-                        val model = MeshReconstructor.reconstruct(volumeSnapshot, tsdf.voxelSize)
-                        activity.runOnUiThread {
-                            if (model.isEmpty) {
-                                report("Поверхность не сформировалась. Нужны перекрывающиеся ракурсы, больше данных и ровное движение.")
-                            } else {
-                                report("3D-сетка готова: ${model.triangleCount} треугольников.")
-                                meshReady(model)
+                        try {
+                            val model = MeshReconstructor.reconstruct(volumeSnapshot, tsdf.voxelSize)
+                            activity.runOnUiThread {
+                                if (model.isEmpty) {
+                                    report("Поверхность не сформировалась. Нужны перекрывающиеся ракурсы, больше данных и ровное движение.")
+                                } else {
+                                    report("3D-сетка готова: ${model.triangleCount} треугольников.")
+                                    meshReady(model)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            activity.runOnUiThread {
+                                report("Ошибка построения 3D-сетки: ${e.localizedMessage ?: e.javaClass.simpleName}")
+                            }
+                        } catch (e: OutOfMemoryError) {
+                            activity.runOnUiThread {
+                                report("Недостаточно памяти для этой сетки. Сканируйте меньший участок и попробуйте снова.")
                             }
                         }
                     }, "ReverseScan-Reconstruction").start()

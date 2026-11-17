@@ -182,8 +182,19 @@ private class ScanRenderer(private val activity: Activity, private val report: (
     private lateinit var vertexBuffer: FloatBuffer
     private lateinit var texBuffer: FloatBuffer
     private var frameCount = 0
+    private var surfaceWidth = 0
+    private var surfaceHeight = 0
+    private var lastDisplayRotation = -1
+    private var lastSurfaceWidth = -1
+    private var lastSurfaceHeight = -1
 
-    fun setSession(value: Session?) { session = value; cameraTextureBound = false }
+    fun setSession(value: Session?) {
+        session = value
+        cameraTextureBound = false
+        lastDisplayRotation = -1
+        lastSurfaceWidth = -1
+        lastSurfaceHeight = -1
+    }
     fun requestCapture() { captureRequested.set(true) }
     fun requestExport() { exportRequested.set(true) }
 
@@ -198,7 +209,13 @@ private class ScanRenderer(private val activity: Activity, private val report: (
         textureHandle = GLES20.glGetUniformLocation(program, "sTexture")
     }
 
-    override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) { GLES20.glViewport(0, 0, width, height) }
+    override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
+        surfaceWidth = width
+        surfaceHeight = height
+        GLES20.glViewport(0, 0, width, height)
+        lastSurfaceWidth = -1
+        lastSurfaceHeight = -1
+    }
 
     override fun onDrawFrame(gl: GL10?) {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
@@ -208,7 +225,19 @@ private class ScanRenderer(private val activity: Activity, private val report: (
                 active.setCameraTextureNames(intArrayOf(textureId))
                 cameraTextureBound = true
             }
+            val rotation = activity.windowManager.defaultDisplay.rotation
+            if (surfaceWidth > 0 && surfaceHeight > 0 &&
+                (rotation != lastDisplayRotation ||
+                 surfaceWidth != lastSurfaceWidth ||
+                 surfaceHeight != lastSurfaceHeight)) {
+                active.setDisplayGeometry(rotation, surfaceWidth, surfaceHeight)
+                lastDisplayRotation = rotation
+                lastSurfaceWidth = surfaceWidth
+                lastSurfaceHeight = surfaceHeight
+            }
+
             val frame = active.update()
+            if (frame.timestamp == 0L) return
             drawCamera(frame)
             if (frame.camera.trackingState != TrackingState.TRACKING) {
                 report("Поиск трекинга… Держите телефон в движении и избегайте однотонных поверхностей.")
@@ -224,6 +253,8 @@ private class ScanRenderer(private val activity: Activity, private val report: (
     }
 
     private fun drawCamera(frame: Frame) {
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        GLES20.glDepthMask(false)
         val input = vertices
         val transformed = FloatArray(8)
         frame.transformCoordinates2d(Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES, input, Coordinates2d.TEXTURE_NORMALIZED, transformed)

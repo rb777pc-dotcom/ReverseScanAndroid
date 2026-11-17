@@ -112,17 +112,29 @@ object MeshReconstructor {
             private set
         val triangleCount: Int get() = size / 9
 
-        fun addTriangle(a: Vec3, b: Vec3, c: Vec3) {
-            val ab = b - a
-            val ac = c - a
+        fun addTriangle(a: Vec3, b: Vec3, c: Vec3, outward: Vec3) {
+            var second = b
+            var third = c
+            val ab = second - a
+            val ac = third - a
             val nx = ab.y * ac.z - ab.z * ac.y
             val ny = ab.z * ac.x - ab.x * ac.z
             val nz = ab.x * ac.y - ab.y * ac.x
-            if (nx * nx + ny * ny + nz * nz < 1e-12f) return
+            if (nx * outward.x + ny * outward.y + nz * outward.z < 0f) {
+                val swap = second
+                second = third
+                third = swap
+            }
+            val finalAb = second - a
+            val finalAc = third - a
+            val finalNx = finalAb.y * finalAc.z - finalAb.z * finalAc.y
+            val finalNy = finalAb.z * finalAc.x - finalAb.x * finalAc.z
+            val finalNz = finalAb.x * finalAc.y - finalAb.y * finalAc.x
+            if (finalNx * finalNx + finalNy * finalNy + finalNz * finalNz < 1e-12f) return
             ensure(9)
             data[size++] = a.x; data[size++] = a.y; data[size++] = a.z
-            data[size++] = b.x; data[size++] = b.y; data[size++] = b.z
-            data[size++] = c.x; data[size++] = c.y; data[size++] = c.z
+            data[size++] = second.x; data[size++] = second.y; data[size++] = second.z
+            data[size++] = third.x; data[size++] = third.y; data[size++] = third.z
         }
 
         fun toArray(): FloatArray = data.copyOf(size)
@@ -153,7 +165,6 @@ object MeshReconstructor {
         val output = FloatBuilder()
         val corners = Array(8) { Vec3(0f, 0f, 0f) }
         val values = FloatArray(8)
-        val cornerSamples = arrayOfNulls<TsdfVolume.Sample>(8)
 
         for ((key, _) in samples) {
             if (output.triangleCount >= MAX_TRIANGLES) break
@@ -171,7 +182,6 @@ object MeshReconstructor {
                     complete = false
                     break
                 }
-                cornerSamples[i] = sample
                 values[i] = sample.sdf
                 corners[i] = Vec3(
                     (gx + offset[0]) * voxelSize,
@@ -203,6 +213,24 @@ object MeshReconstructor {
         }
         if (insideCount == 0 || insideCount == 4) return
 
+        var insideX = 0f; var insideY = 0f; var insideZ = 0f
+        var outsideX = 0f; var outsideY = 0f; var outsideZ = 0f
+        for (i in 0 until insideCount) {
+            val point = p[inside[i]]
+            insideX += point.x; insideY += point.y; insideZ += point.z
+        }
+        for (i in 0 until outsideCount) {
+            val point = p[outside[i]]
+            outsideX += point.x; outsideY += point.y; outsideZ += point.z
+        }
+        val outward = Vec3(
+            outsideX / outsideCount - insideX / insideCount,
+            outsideY / outsideCount - insideY / insideCount,
+            outsideZ / outsideCount - insideZ / insideCount
+        )
+
+        fun emit(a: Vec3, b: Vec3, c: Vec3) = out.addTriangle(a, b, c, outward)
+
         fun edge(a: Int, b: Int): Vec3 {
             val denominator = v[a] - v[b]
             val t = if (abs(denominator) < 1e-8f) 0.5f else (v[a] / denominator).coerceIn(0f, 1f)
@@ -218,13 +246,13 @@ object MeshReconstructor {
                 val a = edge(inside[0], outside[0])
                 val b = edge(inside[0], outside[1])
                 val c = edge(inside[0], outside[2])
-                out.addTriangle(a, b, c)
+                emit(a, b, c)
             }
             3 -> {
                 val a = edge(outside[0], inside[0])
                 val b = edge(outside[0], inside[1])
                 val c = edge(outside[0], inside[2])
-                out.addTriangle(a, c, b)
+                emit(a, c, b)
             }
             2 -> {
                 val a = edge(inside[0], outside[0])
@@ -232,7 +260,7 @@ object MeshReconstructor {
                 val c = edge(inside[1], outside[0])
                 val d = edge(inside[1], outside[1])
                 out.addTriangle(a, b, c)
-                out.addTriangle(b, d, c)
+                emit(b, d, c)
             }
         }
     }

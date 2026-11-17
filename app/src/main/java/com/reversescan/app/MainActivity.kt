@@ -71,7 +71,7 @@ class MainActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private fun buildUi() {
-        val root = FrameLayout(this).apply { setPadding(0, dp(24), 0, dp(24)) }
+        val root = FrameLayout(this).apply { setPadding(0, dp(16), 0, dp(16)) }
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
             setEGLConfigChooser(8, 8, 8, 8, 16, 0)
@@ -105,7 +105,7 @@ class MainActivity : Activity() {
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
             setBackgroundColor(0xE91A2230.toInt())
         }
         val title = TextView(this).apply {
@@ -118,15 +118,15 @@ class MainActivity : Activity() {
             text = "Проверка ARCore…"
             textSize = 13f
             setTextColor(Color.WHITE)
-            setPadding(dp(4), dp(8), dp(4), dp(8))
-            maxLines = 4
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            maxLines = 2
         }
         val hint = TextView(this).apply {
             text = "Поместите предмет внутрь рамки, чтобы он занимал большую её часть. Медленно обходите неподвижный предмет с перекрывающимися ракурсами."
-            textSize = 12f
+            textSize = 11f
             setTextColor(0xFFD5DFEA.toInt())
-            setPadding(dp(4), 0, dp(4), dp(6))
-            maxLines = 3
+            setPadding(dp(4), 0, dp(4), dp(2))
+            maxLines = 2
         }
 
         val firstRow = LinearLayout(this).apply {
@@ -162,9 +162,9 @@ class MainActivity : Activity() {
                 renderer.requestExport()
             }
         }
-        firstRow.addView(scanButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(3) })
-        firstRow.addView(captureButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
-        firstRow.addView(saveButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3) })
+        firstRow.addView(scanButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(3) })
+        firstRow.addView(captureButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
+        firstRow.addView(saveButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(3) })
 
         meshButton = Button(this).apply {
             text = "Построить 3D-модель"
@@ -205,9 +205,25 @@ class MainActivity : Activity() {
             setOnClickListener { if (flashAvailable) renderer.requestFlashToggle() }
         }
         header.addView(torchButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)))
-        panel.addView(header)
-        panel.addView(status)
-        panel.addView(hint)
+        val topPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(0xD91A2230.toInt())
+        }
+        topPanel.addView(header)
+        topPanel.addView(status)
+        topPanel.addView(hint)
+        val legend = TextView(this).apply {
+            text = "ЗЕЛЁНЫЕ — накоплено   •   ЖЁЛТЫЕ — последний кадр глубины   •   без точек — не захвачено"
+            textSize = 10f
+            setTextColor(Color.WHITE)
+            setPadding(dp(4), dp(3), dp(4), dp(2))
+            gravity = Gravity.CENTER
+        }
+        topPanel.addView(legend)
+        root.addView(topPanel, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
+            leftMargin = dp(8); rightMargin = dp(8); topMargin = dp(4)
+        })
         panel.addView(firstRow)
         previewButton = Button(this).apply {
             text = "Просмотр скана"
@@ -224,10 +240,10 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        inspectRow.addView(previewButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(3) })
-        inspectRow.addView(meshButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(3) })
-        panel.addView(inspectRow, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
-        panel.addView(resetButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
+        inspectRow.addView(previewButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(3) })
+        inspectRow.addView(meshButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(3) })
+        panel.addView(inspectRow, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(3) })
+        panel.addView(resetButton, LinearLayout.LayoutParams(-1, dp(38)).apply { topMargin = dp(3) })
 
         val panelParams = FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
             leftMargin = dp(8)
@@ -235,17 +251,6 @@ class MainActivity : Activity() {
             bottomMargin = dp(8)
         }
         root.addView(panel, panelParams)
-        val legend = TextView(this).apply {
-            text = "ЗЕЛЁНЫЕ точки — уже записано   •   ЖЁЛТЫЕ — последний кадр глубины   •   без точек — ещё не захвачено"
-            textSize = 11f
-            setTextColor(Color.WHITE)
-            setBackgroundColor(0xB91A2230.toInt())
-            setPadding(dp(10), dp(8), dp(10), dp(8))
-            gravity = Gravity.CENTER
-        }
-        root.addView(legend, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
-            leftMargin = dp(8); rightMargin = dp(8); topMargin = dp(6)
-        })
         setContentView(root)
     }
 

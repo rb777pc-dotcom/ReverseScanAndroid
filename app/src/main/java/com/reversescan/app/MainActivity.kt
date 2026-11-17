@@ -6,10 +6,13 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.opengl.Matrix
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -48,6 +51,9 @@ class MainActivity : Activity() {
     private lateinit var captureButton: Button
     private lateinit var saveButton: Button
     private lateinit var meshButton: Button
+    private lateinit var torchButton: Button
+    private var flashAvailable = false
+    private var torchEnabled = false
     private var activityResumed = false
     private var installRequested = false
     private var scanning = false
@@ -80,6 +86,13 @@ class MainActivity : Activity() {
             },
             { mesh ->
                 runOnUiThread { showMeshPreview(mesh) }
+            },
+            { enabled, message ->
+                runOnUiThread {
+                    torchEnabled = enabled
+                    if (::torchButton.isInitialized) torchButton.text = if (enabled) "Фонарик: вкл" else if (flashAvailable) "Фонарик: выкл" else "Фонарик недоступен"
+                    if (message.isNotBlank() && ::status.isInitialized) status.text = message
+                }
             }
         )
         glView.setRenderer(renderer)
@@ -180,7 +193,15 @@ class MainActivity : Activity() {
             }
         }
 
-        panel.addView(title)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(title, LinearLayout.LayoutParams(0, dp(44), 1f))
+        torchButton = Button(this).apply {
+            text = "Фонарик: выкл"
+            isEnabled = false
+            setOnClickListener { if (flashAvailable) renderer.requestFlashToggle() }
+        }
+        header.addView(torchButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)))
+        panel.addView(header)
         panel.addView(status)
         panel.addView(hint)
         panel.addView(firstRow)
@@ -193,6 +214,17 @@ class MainActivity : Activity() {
             bottomMargin = dp(8)
         }
         root.addView(panel, panelParams)
+        val legend = TextView(this).apply {
+            text = "ЗЕЛЁНЫЕ точки — уже записано   •   ЖЁЛТЫЕ — глубина сейчас   •   без точек — ещё не захвачено"
+            textSize = 11f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xB91A2230.toInt())
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            gravity = Gravity.CENTER
+        }
+        root.addView(legend, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
+            leftMargin = dp(8); rightMargin = dp(8); topMargin = dp(6)
+        })
         setContentView(root)
     }
 
@@ -234,8 +266,18 @@ class MainActivity : Activity() {
             }
             config.depthMode = Config.DepthMode.AUTOMATIC
             config.focusMode = Config.FocusMode.AUTO
+            config.flashMode = Config.FlashMode.OFF
             session.configure(config)
             arSession = session
+            flashAvailable = try {
+                val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+                manager.getCameraCharacteristics(session.cameraConfig.cameraId).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            } catch (_: Exception) { false }
+            torchEnabled = false
+            if (::torchButton.isInitialized) {
+                torchButton.isEnabled = flashAvailable
+                torchButton.text = if (flashAvailable) "Фонарик: выкл" else "Фонарик недоступен"
+            }
             renderer.setSession(session)
             if (activityResumed) session.resume()
             scanButton.isEnabled = true

@@ -46,10 +46,13 @@ class MainActivity : Activity() {
     private lateinit var scanButton: Button
     private lateinit var captureButton: Button
     private lateinit var saveButton: Button
+    private lateinit var meshButton: Button
     private var activityResumed = false
     private var installRequested = false
     private var scanning = false
     private var pendingExportPoints: List<FloatArray>? = null
+    private var pendingMesh: MeshModel? = null
+    private var pendingMeshFormat: String = "obj"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +76,9 @@ class MainActivity : Activity() {
                     pendingExportPoints = snapshot
                     launchCreateDocument()
                 }
+            },
+            { mesh ->
+                runOnUiThread { showMeshPreview(mesh) }
             }
         )
         glView.setRenderer(renderer)
@@ -142,6 +148,17 @@ class MainActivity : Activity() {
         firstRow.addView(captureButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
         firstRow.addView(saveButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3) })
 
+        meshButton = Button(this).apply {
+            text = "Построить 3D-модель"
+            isEnabled = false
+            setOnClickListener {
+                scanning = false
+                renderer.setScanning(false)
+                scanButton.text = "Начать скан"
+                renderer.requestMesh()
+            }
+        }
+
         val resetButton = Button(this).apply {
             text = "Новый скан — очистить точки"
             isEnabled = true
@@ -164,6 +181,7 @@ class MainActivity : Activity() {
         panel.addView(status)
         panel.addView(hint)
         panel.addView(firstRow)
+        panel.addView(meshButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
         panel.addView(resetButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
 
         val panelParams = FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
@@ -220,6 +238,7 @@ class MainActivity : Activity() {
             scanButton.isEnabled = true
             captureButton.isEnabled = true
             saveButton.isEnabled = true
+            meshButton.isEnabled = true
             status.text = "Камера готова. Автофокус включён. Нажмите «Начать скан» или добавляйте ракурсы вручную."
         } catch (e: Exception) {
             arSession?.close()
@@ -248,9 +267,72 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showMeshPreview(mesh: MeshModel) {
+        if (mesh.isEmpty) {
+            status.text = "Сетка не получилась: мало перекрывающихся данных глубины. Просканируйте объект с большим числом ракурсов."
+            return
+        }
+        pendingMesh = mesh
+        status.text = "3D-сетка построена: ${mesh.triangleCount} треугольников. Можно вращать модель пальцем и экспортировать OBJ или STL."
+        val preview = MeshPreviewView(this, mesh)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("3D-модель · ${mesh.triangleCount} треугольников")
+            .setView(preview)
+            .setPositiveButton("Экспорт OBJ") { _, _ -> launchCreateMeshDocument("obj") }
+            .setNeutralButton("Экспорт STL") { _, _ -> launchCreateMeshDocument("stl") }
+            .setNegativeButton("Закрыть", null)
+            .create()
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94f).toInt(),
+            (resources.displayMetrics.heightPixels * 0.72f).toInt())
+    }
+
+    private fun launchCreateMeshDocument(format: String) {
+        val mesh = pendingMesh
+        if (mesh == null || mesh.isEmpty) {
+            status.text = "Нет готовой 3D-сетки для экспорта."
+            return
+        }
+        pendingMeshFormat = format
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val mime = if (format == "stl") "model/stl" else "model/obj"
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mime
+            putExtra(Intent.EXTRA_TITLE, "ReverseScan_$stamp.$format")
+        }
+        try {
+            startActivityForResult(intent, CREATE_MESH_REQUEST)
+        } catch (e: Exception) {
+            status.text = "Не удалось открыть выбор места сохранения модели: ${e.localizedMessage}"
+        }
+    }
+
     @Deprecated("Using the system document picker for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == CREATE_MESH_REQUEST) {
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            val mesh = pendingMesh
+            if (uri == null || mesh == null) {
+                status.text = "Экспорт 3D-модели отменён."
+                return
+            }
+            val format = pendingMeshFormat
+            status.text = "Сохраняю ${mesh.triangleCount} треугольников в ${format.uppercase(Locale.ROOT)}…"
+            Thread({
+                try {
+                    val output = contentResolver.openOutputStream(uri)
+                        ?: throw IllegalStateException("Не удалось открыть выбранный файл")
+                    if (format == "stl") MeshFileWriter.writeStl(mesh, output)
+                    else MeshFileWriter.writeObj(mesh, output)
+                    runOnUiThread { status.text = "3D-модель сохранена. Её можно открыть в Blender, MeshLab или CAD-программе." }
+                } catch (e: Exception) {
+                    runOnUiThread { status.text = "Ошибка экспорта модели: ${e.localizedMessage ?: e.javaClass.simpleName}" }
+                }
+            }, "ReverseScan-MeshExport").start()
+            return
+        }
         if (requestCode != CREATE_PLY_REQUEST) return
         val uri: Uri? = if (resultCode == RESULT_OK) data?.data else null
         val points = pendingExportPoints
@@ -326,20 +408,24 @@ class MainActivity : Activity() {
 
     companion object {
         private const val CREATE_PLY_REQUEST = 501
+        private const val CREATE_MESH_REQUEST = 502
     }
 }
 
 private class ScanRenderer(
     private val activity: Activity,
     private val report: (String) -> Unit,
-    private val exportReady: (List<FloatArray>) -> Unit
+    private val exportReady: (List<FloatArray>) -> Unit,
+    private val meshReady: (MeshModel) -> Unit
 ) : Renderer {
     @Volatile private var session: Session? = null
     private val captureRequested = AtomicBoolean(false)
     private val exportRequested = AtomicBoolean(false)
+    private val meshRequested = AtomicBoolean(false)
     private val resetRequested = AtomicBoolean(false)
     private val scanning = AtomicBoolean(false)
     private val points = LinkedHashMap<Long, FloatArray>()
+    private val tsdf = TsdfVolume()
     private var viewsCaptured = 0
     private var textureId = -1
     private var program = 0
@@ -370,6 +456,7 @@ private class ScanRenderer(
     fun setScanning(value: Boolean) { scanning.set(value) }
     fun requestCapture() { captureRequested.set(true) }
     fun requestExport() { exportRequested.set(true) }
+    fun requestMesh() { meshRequested.set(true) }
     fun requestReset() { resetRequested.set(true) }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -417,10 +504,12 @@ private class ScanRenderer(
 
             if (resetRequested.compareAndSet(true, false)) {
                 points.clear()
+                tsdf.clear()
                 viewsCaptured = 0
                 captureRequested.set(false)
                 exportRequested.set(false)
-                report("Новый скан готов. Точки очищены.")
+                meshRequested.set(false)
+                report("Новый скан готов. Облако и объём глубины очищены.")
             }
 
             if (exportRequested.compareAndSet(true, false)) {
@@ -430,6 +519,27 @@ private class ScanRenderer(
                 } else {
                     report("Подготовка PLY: ${points.size} точек…")
                     exportReady(points.values.toList())
+                }
+            }
+
+            if (meshRequested.compareAndSet(true, false)) {
+                scanning.set(false)
+                val volumeSnapshot = tsdf.snapshot()
+                if (volumeSnapshot.size < 8) {
+                    report("Недостаточно данных для 3D-сетки. Сначала просканируйте объект с нескольких сторон.")
+                } else {
+                    report("Строю поверхность из ${volumeSnapshot.size} объёмных ячеек. Это может занять время…")
+                    Thread({
+                        val model = MeshReconstructor.reconstruct(volumeSnapshot, tsdf.voxelSize)
+                        activity.runOnUiThread {
+                            if (model.isEmpty) {
+                                report("Поверхность не сформировалась. Нужны перекрывающиеся ракурсы, больше данных и ровное движение.")
+                            } else {
+                                report("3D-сетка готова: ${model.triangleCount} треугольников.")
+                                meshReady(model)
+                            }
+                        }
+                    }, "ReverseScan-Reconstruction").start()
                 }
             }
 
@@ -536,9 +646,12 @@ private class ScanRenderer(
                     val z = millimetres / 1000f
                     if (z < MIN_DEPTH_METRES || z > MAX_DEPTH_METRES) continue
                     valid++
-                    val x = (u - cx) * z / fx
-                    val y = (v - cy) * z / fy
-                    val world = pose.transformPoint(floatArrayOf(x, -y, -z))
+                    val rayX = (u - cx) / fx
+                    val rayY = -(v - cy) / fy
+                    val x = rayX * z
+                    val y = rayY * z
+                    val world = pose.transformPoint(floatArrayOf(x, y, -z))
+                    tsdf.integratePixel(pose, rayX, rayY, z, if (conf >= 200) 3 else 1)
                     val key = voxelKey(world[0], world[1], world[2])
                     if (!points.containsKey(key) && points.size < MAX_POINTS) {
                         points[key] = floatArrayOf(world[0], world[1], world[2])

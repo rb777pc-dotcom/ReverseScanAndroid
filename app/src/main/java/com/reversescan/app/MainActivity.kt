@@ -279,7 +279,7 @@ class MainActivity : Activity() {
         topPanel.addView(status)
         topPanel.addView(hint)
         val legend = TextView(this).apply {
-            text = "ГОЛУБОЕ — собрано   •   ОРАНЖЕВОЕ — новый кадр   •   ЗЕЛЁНЫЙ — контур выбора"
+            text = "ЗЕЛЁНЫЙ — выбранный предмет   •   ОРАНЖЕВЫЙ — текущий кадр   •   ГОЛУБОЙ — накоплено"
             textSize = 10f
             setTextColor(Color.WHITE)
             setPadding(dp(4), dp(3), dp(4), dp(2))
@@ -1209,7 +1209,7 @@ private class ScanRenderer(
             viewsCaptured++
             lastSeedDistanceMetres = selectedComponent.seedDepthMetres
             cloudDirty = true
-            publishProgress(currentDepthPoints, accepted, accepted, selectedComponent.seedDepthMetres)
+            publishProgress(currentDepthPoints, accepted, accepted, selectedComponent.seedDepthMetres, validDepthCount)
 
             report(
                 "Захват #$viewsCaptured: $accepted точек глубины (точные raw: $rawDepthCount, плотная карта: $denseDepthCount), " +
@@ -1259,7 +1259,8 @@ private class ScanRenderer(
         currentPoints: FloatArray,
         currentCount: Int,
         acceptedPixels: Int,
-        seedDistanceMetres: Float
+        seedDistanceMetres: Float,
+        validDepthPixels: Int = acceptedPixels
     ) {
         val maxAccumulated = 4200
         val stride = max(1, (points.size + maxAccumulated - 1) / maxAccumulated)
@@ -1276,7 +1277,8 @@ private class ScanRenderer(
             current.add(floatArrayOf(currentPoints[offset], currentPoints[offset + 1], currentPoints[offset + 2]))
             i += currentStride
         }
-        progressReady(ScanProgressSnapshot(accumulated, current, points.size, viewsCaptured, acceptedPixels, seedDistanceMetres))
+        val rejectedDepthPixels = (validDepthPixels - acceptedPixels).coerceAtLeast(0)
+        progressReady(ScanProgressSnapshot(accumulated, current, points.size, viewsCaptured, acceptedPixels, rejectedDepthPixels, seedDistanceMetres))
     }
 
     private fun voxelKey(x: Float, y: Float, z: Float): Long {

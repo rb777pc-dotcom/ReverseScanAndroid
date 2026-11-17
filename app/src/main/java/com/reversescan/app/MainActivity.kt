@@ -161,7 +161,7 @@ class MainActivity : Activity() {
         }
 
         val resetButton = Button(this).apply {
-            text = "Новый скан — очистить точки"
+            text = "Новый скан — очистить данные"
             isEnabled = true
             setOnClickListener {
                 AlertDialog.Builder(this@MainActivity)
@@ -242,7 +242,7 @@ class MainActivity : Activity() {
             captureButton.isEnabled = true
             saveButton.isEnabled = true
             meshButton.isEnabled = true
-            status.text = "Камера готова. Автофокус включён. Нажмите «Начать скан» или добавляйте ракурсы вручную."
+            status.text = "Камера готова. Запрошен автофокус. Нажмите «Начать скан» или добавляйте ракурсы вручную."
         } catch (e: Exception) {
             arSession?.close()
             arSession = null

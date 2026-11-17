@@ -1036,7 +1036,7 @@ private class ScanRenderer(
 
             report(
                 "Захват #$viewsCaptured: $accepted точек глубины (точные raw: $rawDepthCount, плотная карта: $denseDepthCount), " +
-                    "+$added новых точек; всего в скане \${points.size}. Голубое — собрано, оранжевое — текущий кадр."
+                    "+$added новых точек; всего в скане ${points.size}. Голубое — собрано, оранжевое — текущий кадр."
             )
             if (points.size >= MAX_POINTS) {
                 scanning.set(false)

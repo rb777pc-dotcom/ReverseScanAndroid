@@ -66,3 +66,13 @@ gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug
 ```
 
 Install and test on the physical ARCore-capable phone. The Android emulator cannot validate the camera depth pipeline.
+
+
+## Version 0.8.0 — manual object selection and 3D target lock
+
+- Added a finger-drawn lasso contour before scanning.
+- Converts the Android screen contour to ARCore camera-image coordinates using the current display geometry.
+- Uses depth-connected segmentation only inside the lasso, reducing background pickup.
+- Creates a conservative 3D target volume in the first selected view and tracks that fixed volume in ARCore world space as the phone moves.
+- Frames outside the locked volume are rejected instead of re-seeding on the background.
+- The lasso is a manual object boundary, not semantic AI classification; depth segmentation refines the selected region.

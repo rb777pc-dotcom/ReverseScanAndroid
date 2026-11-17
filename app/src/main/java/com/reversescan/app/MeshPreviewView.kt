@@ -57,7 +57,7 @@ class MeshPreviewView(context: Context, private val mesh: MeshModel) : View(cont
         if (mesh.isEmpty || width == 0 || height == 0) return
 
         val faces = ArrayList<Face>()
-        val stride = max(1, mesh.triangleCount / 12_000)
+        val stride = max(1, (mesh.triangleCount + 11_999) / 12_000)
         val focal = min(width, height) * 0.95f
         val distance = 3.4f
         var triangle = 0

@@ -303,7 +303,7 @@ class MainActivity : Activity() {
         }
         pendingMeshFormat = format
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val mime = if (format == "stl") "model/stl" else "model/obj"
+        val mime = "*/*"
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mime

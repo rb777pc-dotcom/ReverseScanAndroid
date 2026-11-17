@@ -12,8 +12,8 @@ android {
         applicationId = "com.reversescan.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
     }
 
     compileOptions {
@@ -28,4 +28,5 @@ android {
 
 dependencies {
     implementation("com.google.ar:core:1.48.0")
+    testImplementation("junit:junit:4.13.2")
 }

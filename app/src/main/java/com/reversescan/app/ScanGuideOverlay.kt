@@ -31,10 +31,10 @@ class ScanGuideOverlay(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val left = width * 0.20f
-        val top = height * 0.26f
-        val right = width * 0.80f
-        val bottom = height * 0.74f
+        val left = width * 0.22f
+        val top = height * 0.22f
+        val right = width * 0.78f
+        val bottom = height * 0.78f
         val radius = 14f * resources.displayMetrics.density
         canvas.drawRoundRect(RectF(left, top, right, bottom), radius, radius, guidePaint)
 

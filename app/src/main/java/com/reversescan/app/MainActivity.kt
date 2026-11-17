@@ -466,7 +466,8 @@ private class ScanRenderer(
     private val activity: Activity,
     private val report: (String) -> Unit,
     private val exportReady: (List<FloatArray>) -> Unit,
-    private val meshReady: (MeshModel) -> Unit
+    private val meshReady: (MeshModel) -> Unit,
+    private val flashChanged: (Boolean, String) -> Unit
 ) : Renderer {
     @Volatile private var session: Session? = null
     private val captureRequested = AtomicBoolean(false)
@@ -474,6 +475,8 @@ private class ScanRenderer(
     private val meshRequested = AtomicBoolean(false)
     private val meshBuilding = AtomicBoolean(false)
     private val resetRequested = AtomicBoolean(false)
+    private val flashToggleRequested = AtomicBoolean(false)
+    private var flashEnabled = false
     private val scanning = AtomicBoolean(false)
     private val points = LinkedHashMap<Long, FloatArray>()
     private val tsdf = TsdfVolume()
@@ -483,6 +486,19 @@ private class ScanRenderer(
     private var positionHandle = 0
     private var texCoordHandle = 0
     private var textureHandle = 0
+    private var pointProgram = 0
+    private var pointPositionHandle = 0
+    private var pointMvpHandle = 0
+    private var pointColorHandle = 0
+    private var pointSizeHandle = 0
+    private var pointBuffer: FloatBuffer? = null
+    private var pointVertexCount = 0
+    private var cloudDirty = true
+    private var latestDepthBuffer: FloatBuffer? = null
+    private var latestDepthCount = 0
+    private val viewMatrix = FloatArray(16)
+    private val projectionMatrix = FloatArray(16)
+    private val mvpMatrix = FloatArray(16)
     private var cameraTextureBound = false
     private val vertices = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)
     private val texCoords = FloatArray(8)
@@ -511,6 +527,7 @@ private class ScanRenderer(
         if (meshBuilding.compareAndSet(false, true)) meshRequested.set(true)
     }
     fun requestReset() { resetRequested.set(true) }
+    fun requestFlashToggle() { flashToggleRequested.set(true) }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         cameraTextureBound = false
@@ -522,6 +539,11 @@ private class ScanRenderer(
         positionHandle = GLES20.glGetAttribLocation(program, "aPosition")
         texCoordHandle = GLES20.glGetAttribLocation(program, "aTexCoord")
         textureHandle = GLES20.glGetUniformLocation(program, "sTexture")
+        pointProgram = createProgram(POINT_VERTEX_SHADER, POINT_FRAGMENT_SHADER)
+        pointPositionHandle = GLES20.glGetAttribLocation(pointProgram, "aPosition")
+        pointMvpHandle = GLES20.glGetUniformLocation(pointProgram, "uMvp")
+        pointColorHandle = GLES20.glGetUniformLocation(pointProgram, "uColor")
+        pointSizeHandle = GLES20.glGetUniformLocation(pointProgram, "uPointSize")
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -551,14 +573,32 @@ private class ScanRenderer(
                 lastSurfaceHeight = surfaceHeight
             }
 
+            if (flashToggleRequested.compareAndSet(true, false)) {
+                try {
+                    val next = !flashEnabled
+                    val config = active.config
+                    config.flashMode = if (next) Config.FlashMode.TORCH else Config.FlashMode.OFF
+                    active.configure(config)
+                    flashEnabled = next
+                    flashChanged(next, if (next) "Фонарик включён." else "Фонарик выключен.")
+                } catch (e: Exception) {
+                    flashChanged(flashEnabled, "Не удалось переключить фонарик: " + (e.localizedMessage ?: e.javaClass.simpleName))
+                }
+            }
             val frame = active.update()
             if (frame.timestamp == 0L) return
             drawCamera(frame)
+            drawPointOverlay(frame)
 
             if (resetRequested.compareAndSet(true, false)) {
                 points.clear()
                 tsdf.clear()
                 viewsCaptured = 0
+                cloudDirty = true
+                pointBuffer = null
+                pointVertexCount = 0
+                latestDepthBuffer = null
+                latestDepthCount = 0
                 captureRequested.set(false)
                 exportRequested.set(false)
                 meshRequested.set(false)
@@ -801,5 +841,7 @@ private class ScanRenderer(
         private const val AUTO_CAPTURE_INTERVAL_NS = 350_000_000L
         private const val VERTEX_SHADER = "attribute vec4 aPosition; attribute vec2 aTexCoord; varying vec2 vTexCoord; void main(){ gl_Position=aPosition; vTexCoord=aTexCoord; }"
         private const val FRAGMENT_SHADER = "#extension GL_OES_EGL_image_external : require\nprecision mediump float; uniform samplerExternalOES sTexture; varying vec2 vTexCoord; void main(){ gl_FragColor=texture2D(sTexture, vTexCoord); }"
+        private const val POINT_VERTEX_SHADER = "attribute vec4 aPosition; uniform mat4 uMvp; uniform float uPointSize; void main(){ gl_Position=uMvp*aPosition; gl_PointSize=uPointSize; }"
+        private const val POINT_FRAGMENT_SHADER = "precision mediump float; uniform vec4 uColor; void main(){ vec2 p=gl_PointCoord-vec2(0.5); if(dot(p,p)>0.25) discard; gl_FragColor=uColor; }"
     }
 }

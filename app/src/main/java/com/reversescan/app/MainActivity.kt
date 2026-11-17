@@ -24,6 +24,7 @@ import android.widget.TextView
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
 import com.google.ar.core.Frame
+import com.google.ar.core.Pose
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
 import com.google.ar.core.Coordinates2d
@@ -39,8 +40,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLSurfaceView.Renderer
+import kotlin.math.acos
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 class MainActivity : Activity() {
     private var arSession: Session? = null
@@ -53,6 +57,7 @@ class MainActivity : Activity() {
     private lateinit var meshButton: Button
     private lateinit var previewButton: Button
     private lateinit var torchButton: Button
+    private lateinit var livePreview: LiveScanPreviewView
     private var flashAvailable = false
     private var torchEnabled = false
     private var activityResumed = false
@@ -69,6 +74,13 @@ class MainActivity : Activity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
+
+    private fun setScanningActive(value: Boolean) {
+        scanning = value
+        if (::renderer.isInitialized) renderer.setScanning(value)
+        if (value) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
 
     private fun buildUi() {
         val root = FrameLayout(this).apply { setPadding(0, dp(16), 0, dp(16)) }
@@ -96,12 +108,18 @@ class MainActivity : Activity() {
                     if (message.isNotBlank() && ::status.isInitialized) status.text = message
                 }
             },
-            { snapshot -> runOnUiThread { showPointCloudPreview(snapshot) } }
+            { snapshot -> runOnUiThread { showPointCloudPreview(snapshot) } },
+            { snapshot -> runOnUiThread { if (::livePreview.isInitialized) livePreview.update(snapshot) } }
         )
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
         root.addView(ScanGuideOverlay(this), FrameLayout.LayoutParams(-1, -1))
+        livePreview = LiveScanPreviewView(this)
+        livePreview.contentDescription = "Предварительный просмотр накопленной 3D-формы"
+        root.addView(livePreview, FrameLayout.LayoutParams(dp(142), dp(166), Gravity.END or Gravity.CENTER_VERTICAL).apply {
+            rightMargin = dp(7)
+        })
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -137,8 +155,7 @@ class MainActivity : Activity() {
             text = "Начать скан"
             isEnabled = false
             setOnClickListener {
-                scanning = !scanning
-                renderer.setScanning(scanning)
+                setScanningActive(!scanning)
                 text = if (scanning) "Пауза" else "Продолжить"
                 status.text = if (scanning) {
                     "Идёт сканирование. Двигайтесь плавно, не вращайте телефон резко."
@@ -156,8 +173,7 @@ class MainActivity : Activity() {
             text = "Сохранить PLY"
             isEnabled = false
             setOnClickListener {
-                scanning = false
-                renderer.setScanning(false)
+                setScanningActive(false)
                 scanButton.text = "Начать скан"
                 renderer.requestExport()
             }
@@ -170,8 +186,7 @@ class MainActivity : Activity() {
             text = "Построить 3D-модель"
             isEnabled = false
             setOnClickListener {
-                scanning = false
-                renderer.setScanning(false)
+                setScanningActive(false)
                 scanButton.text = "Начать скан"
                 renderer.requestMesh()
             }
@@ -186,8 +201,7 @@ class MainActivity : Activity() {
                     .setMessage("Текущие несохранённые точки будут удалены.")
                     .setNegativeButton("Отмена", null)
                     .setPositiveButton("Очистить") { _, _ ->
-                        scanning = false
-                        renderer.setScanning(false)
+                        setScanningActive(false)
                         scanButton.text = "Начать скан"
                         pendingMesh = null
                         pendingExportPoints = null
@@ -229,8 +243,7 @@ class MainActivity : Activity() {
             text = "Просмотр скана"
             isEnabled = false
             setOnClickListener {
-                scanning = false
-                renderer.setScanning(false)
+                setScanningActive(false)
                 scanButton.text = "Продолжить"
                 renderer.requestPointCloudPreview()
             }
@@ -379,8 +392,7 @@ class MainActivity : Activity() {
             .setTitle("Накопленный скан · ${points.size} точек")
             .setView(preview)
             .setPositiveButton("Продолжить сканирование") { _, _ ->
-                scanning = true
-                renderer.setScanning(true)
+                setScanningActive(true)
                 scanButton.text = "Пауза"
             }
             .setNegativeButton("Закрыть", null)
@@ -476,6 +488,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         activityResumed = true
+        if (scanning) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (::glView.isInitialized) glView.onResume()
         if (installRequested) {
             startArSession()
@@ -488,6 +501,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         activityResumed = false
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (::glView.isInitialized) glView.onPause()
         try { arSession?.pause() } catch (_: Exception) { }
         super.onPause()
@@ -503,6 +517,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (::renderer.isInitialized) renderer.setSession(null)
         arSession?.close()
         arSession = null
@@ -521,7 +536,8 @@ private class ScanRenderer(
     private val exportReady: (List<FloatArray>) -> Unit,
     private val meshReady: (MeshModel) -> Unit,
     private val flashChanged: (Boolean, String) -> Unit,
-    private val cloudReady: (List<FloatArray>) -> Unit
+    private val cloudReady: (List<FloatArray>) -> Unit,
+    private val progressReady: (ScanProgressSnapshot) -> Unit
 ) : Renderer {
     @Volatile private var session: Session? = null
     private val captureRequested = AtomicBoolean(false)
@@ -534,8 +550,12 @@ private class ScanRenderer(
     private var flashEnabled = false
     private val scanning = AtomicBoolean(false)
     private val points = LinkedHashMap<Long, FloatArray>()
-    private val tsdf = TsdfVolume()
+    private val tsdf = TsdfVolume(voxelSize = 0.015f, truncation = 0.045f)
     private var viewsCaptured = 0
+    private var lastCaptureTranslation: FloatArray? = null
+    private var lastCaptureRotation: FloatArray? = null
+    private var lastNoMotionMessageNs = 0L
+    private var lastSeedDistanceMetres = 0f
     private var textureId = -1
     private var program = 0
     private var positionHandle = 0
@@ -650,11 +670,15 @@ private class ScanRenderer(
                 points.clear()
                 tsdf.clear()
                 viewsCaptured = 0
+                lastCaptureTranslation = null
+                lastCaptureRotation = null
+                lastSeedDistanceMetres = 0f
                 cloudDirty = true
                 pointBuffer = null
                 pointVertexCount = 0
                 latestDepthBuffer = null
                 latestDepthCount = 0
+                progressReady(ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0f))
                 captureRequested.set(false)
                 exportRequested.set(false)
                 meshRequested.set(false)
@@ -680,9 +704,12 @@ private class ScanRenderer(
             if (meshRequested.compareAndSet(true, false)) {
                 scanning.set(false)
                 val volumeSnapshot = tsdf.snapshot()
-                if (volumeSnapshot.size < 8) {
+                if (viewsCaptured < MIN_CAPTURED_VIEWS || points.size < MIN_OBJECT_POINTS) {
                     meshBuilding.set(false)
-                    report("Недостаточно данных для 3D-сетки. Сначала просканируйте объект с нескольких сторон.")
+                    report("Пока рано строить модель: принято ракурсов $viewsCaptured из минимум $MIN_CAPTURED_VIEWS, точек объекта ${points.size} из минимум $MIN_OBJECT_POINTS. Обойдите предмет с разных сторон.")
+                } else if (volumeSnapshot.size < 8) {
+                    meshBuilding.set(false)
+                    report("Недостаточно объёмных данных для поверхности. Продолжите обход предмета, сохраняя перекрытие ракурсов.")
                 } else {
                     report("Строю поверхность из ${volumeSnapshot.size} объёмных ячеек. Это может занять время…")
                     Thread({
@@ -780,8 +807,8 @@ private class ScanRenderer(
 
             pointBuffer?.let { buffer ->
                 if (pointVertexCount > 0) {
-                    GLES20.glUniform4f(pointColorHandle, 0.12f, 1f, 0.28f, 0.82f)
-                    GLES20.glUniform1f(pointSizeHandle, 5.5f)
+                    GLES20.glUniform4f(pointColorHandle, 0.08f, 0.88f, 0.98f, 0.95f)
+                    GLES20.glUniform1f(pointSizeHandle, 9.5f)
                     buffer.position(0)
                     GLES20.glEnableVertexAttribArray(pointPositionHandle)
                     GLES20.glVertexAttribPointer(pointPositionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer)
@@ -791,8 +818,8 @@ private class ScanRenderer(
             }
             latestDepthBuffer?.let { buffer ->
                 if (latestDepthCount > 0) {
-                    GLES20.glUniform4f(pointColorHandle, 1f, 0.72f, 0.05f, 0.98f)
-                    GLES20.glUniform1f(pointSizeHandle, 7.5f)
+                    GLES20.glUniform4f(pointColorHandle, 1f, 0.34f, 0.04f, 1f)
+                    GLES20.glUniform1f(pointSizeHandle, 13f)
                     buffer.position(0)
                     GLES20.glEnableVertexAttribArray(pointPositionHandle)
                     GLES20.glVertexAttribPointer(pointPositionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer)
@@ -856,6 +883,7 @@ private class ScanRenderer(
                 report("Камера ещё не передала калибровку. Повторите ракурс через секунду.")
                 return
             }
+
             val sx = width.toFloat() / max(1, imageSize[0])
             val sy = height.toFloat() / max(1, imageSize[1])
             val fx = focal[0] * sx
@@ -863,22 +891,25 @@ private class ScanRenderer(
             val cx = principal[0] * sx
             val cy = principal[1] * sy
             val pose = frame.camera.pose
-            var valid = 0
-            var added = 0
-            val step = if (width >= 320) 3 else 2
+            val step = 2
             val roiLeft = (width * ROI_LEFT_FRACTION).toInt()
             val roiRight = (width * ROI_RIGHT_FRACTION).toInt()
             val roiTop = (height * ROI_TOP_FRACTION).toInt()
             val roiBottom = (height * ROI_BOTTOM_FRACTION).toInt()
-            val currentDepthPoints = FloatArray(((width + step - 1) / step) * ((height + step - 1) / step) * 3)
-            var currentDepthCount = 0
+            val gridWidth = (roiRight - roiLeft + step - 1) / step
+            val gridHeight = (roiBottom - roiTop + step - 1) / step
+            val sampledDepth = FloatArray(gridWidth * gridHeight)
+            val sampledConfidence = IntArray(gridWidth * gridHeight)
+            var validDepthCount = 0
 
-            for (v in roiTop until roiBottom step step) {
-                for (u in roiLeft until roiRight step step) {
+            // First pass: compact depth map; the centre of the frame is the target seed.
+            for (gy in 0 until gridHeight) {
+                val v = roiTop + gy * step
+                for (gx in 0 until gridWidth) {
+                    val u = roiLeft + gx * step
                     val dOffset = v * depthRowStride + u * depthPixelStride
                     if (dOffset < 0 || dOffset + 1 >= depth.limit()) continue
-                    val packed = depth.getShort(dOffset).toInt() and 0xFFFF
-                    val millimetres = packed and 0x1FFF
+                    val millimetres = depth.getShort(dOffset).toInt() and 0x1FFF
                     if (millimetres == 0) continue
                     val cOffset = v * confRowStride + u * confPixelStride
                     if (cOffset < 0 || cOffset >= confidence.limit()) continue
@@ -886,19 +917,59 @@ private class ScanRenderer(
                     if (conf < MIN_CONFIDENCE) continue
                     val z = millimetres / 1000f
                     if (z < MIN_DEPTH_METRES || z > MAX_DEPTH_METRES) continue
-                    valid++
+                    val index = gy * gridWidth + gx
+                    sampledDepth[index] = z
+                    sampledConfidence[index] = conf
+                    validDepthCount++
+                }
+            }
+
+            val component = DepthObjectSegmenter.select(
+                sampledDepth, gridWidth, gridHeight, gridWidth / 2, gridHeight / 2
+            )
+            if (component == null || component.pixelCount < MIN_OBJECT_PIXELS) {
+                latestDepthCount = 0
+                latestDepthBuffer = null
+                publishProgress(FloatArray(0), 0, 0, 0f)
+                report(if (validDepthCount == 0) {
+                    "Глубина не распознана. Улучшите освещение и наведите центр рамки на предмет."
+                } else {
+                    "Не удалось выделить сам предмет. Поставьте его точно в центр рамки и отделите фон от предмета."
+                })
+                return
+            }
+
+            if (!isNewCapturePose(pose)) {
+                val now = System.nanoTime()
+                if (now - lastNoMotionMessageNs > 1_500_000_000L) {
+                    report("Кадр не добавлен: телефон почти не изменил ракурс. Медленно переместитесь вокруг неподвижного предмета.")
+                    lastNoMotionMessageNs = now
+                }
+                return
+            }
+
+            var accepted = 0
+            var added = 0
+            val currentDepthPoints = FloatArray(component.pixelCount * 3)
+            for (gy in 0 until gridHeight) {
+                val v = roiTop + gy * step
+                for (gx in 0 until gridWidth) {
+                    val index = gy * gridWidth + gx
+                    if (!component.mask[index]) continue
+                    val u = roiLeft + gx * step
+                    val z = sampledDepth[index]
+                    val conf = sampledConfidence[index]
+                    if (z <= 0f || conf < MIN_CONFIDENCE) continue
+                    accepted++
+
                     val rayX = (u - cx) / fx
                     val rayY = -(v - cy) / fy
-                    val x = rayX * z
-                    val y = rayY * z
-                    val world = pose.transformPoint(floatArrayOf(x, y, -z))
-                    if (currentDepthCount * 3 + 2 < currentDepthPoints.size) {
-                        val offset = currentDepthCount * 3
-                        currentDepthPoints[offset] = world[0]
-                        currentDepthPoints[offset + 1] = world[1]
-                        currentDepthPoints[offset + 2] = world[2]
-                        currentDepthCount++
-                    }
+                    val world = pose.transformPoint(floatArrayOf(rayX * z, rayY * z, -z))
+                    val offset = (accepted - 1) * 3
+                    currentDepthPoints[offset] = world[0]
+                    currentDepthPoints[offset + 1] = world[1]
+                    currentDepthPoints[offset + 2] = world[2]
+
                     tsdf.integratePixel(pose, rayX, rayY, z, if (conf >= 200) 3 else 1)
                     val key = voxelKey(world[0], world[1], world[2])
                     if (!points.containsKey(key) && points.size < MAX_POINTS) {
@@ -908,28 +979,24 @@ private class ScanRenderer(
                 }
             }
 
-            latestDepthCount = currentDepthCount
-            latestDepthBuffer = if (currentDepthCount > 0) {
-                ByteBuffer.allocateDirect(currentDepthCount * 3 * 4).order(ByteOrder.nativeOrder())
-                    .asFloatBuffer().apply {
-                        put(currentDepthPoints, 0, currentDepthCount * 3)
-                        position(0)
-                    }
-            } else null
+            latestDepthCount = accepted
+            latestDepthBuffer = ByteBuffer.allocateDirect(accepted * 3 * 4)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer().apply {
+                    put(currentDepthPoints, 0, accepted * 3)
+                    position(0)
+                }
+            viewsCaptured++
+            lastSeedDistanceMetres = component.seedDepthMetres
+            cloudDirty = true
+            publishProgress(currentDepthPoints, accepted, accepted, component.seedDepthMetres)
 
-            if (added > 0) {
-                cloudDirty = true
-                viewsCaptured++
-                report("Ракурс #" + viewsCaptured + ": +" + added + " новых точек · всего " + points.size + " · последний кадр: " + currentDepthCount + " точек. Зелёное — накоплено, жёлтое — текущий кадр.")
-            } else if (valid == 0) {
-                report("Мало качественных данных глубины. Включите фонарик при необходимости, держите объект в кадре и проверьте освещение.")
-            } else {
-                report("Новых точек почти нет. Смените угол обзора и направьте камеру на ещё не просканированную сторону.")
-            }
-
+            report(
+                "Захват #$viewsCaptured: выделен предмет — $accepted точек глубины, +$added новых точек; всего в скане ${points.size}. " +
+                    "Справа: голубое — уже собрано, оранжевое — этот кадр."
+            )
             if (points.size >= MAX_POINTS) {
                 scanning.set(false)
-                report("Достигнут лимит ${MAX_POINTS} точек. Сохраните результат в PLY.")
+                report("Достигнут лимит $MAX_POINTS точек. Остановите сканирование и проверьте 3D-заготовку.")
             }
         } catch (e: Exception) {
             val reason = e.localizedMessage ?: "попробуйте изменить расстояние и освещение"
@@ -938,6 +1005,57 @@ private class ScanRenderer(
             depthImage?.close()
             confidenceImage?.close()
         }
+    }
+
+    private fun isNewCapturePose(pose: Pose): Boolean {
+        val translation = pose.translation
+        val rotation = pose.rotationQuaternion
+        val previousTranslation = lastCaptureTranslation
+        val previousRotation = lastCaptureRotation
+        if (previousTranslation == null || previousRotation == null) {
+            lastCaptureTranslation = translation.copyOf()
+            lastCaptureRotation = rotation.copyOf()
+            return true
+        }
+        val dx = translation[0] - previousTranslation[0]
+        val dy = translation[1] - previousTranslation[1]
+        val dz = translation[2] - previousTranslation[2]
+        val movement = sqrt(dx * dx + dy * dy + dz * dz)
+        val dot = abs(
+            rotation[0] * previousRotation[0] +
+                rotation[1] * previousRotation[1] +
+                rotation[2] * previousRotation[2] +
+                rotation[3] * previousRotation[3]
+        ).coerceIn(0f, 1f)
+        val angle = 2f * acos(dot)
+        if (movement < MIN_VIEW_TRANSLATION_METRES && angle < MIN_VIEW_ROTATION_RADIANS) return false
+        lastCaptureTranslation = translation.copyOf()
+        lastCaptureRotation = rotation.copyOf()
+        return true
+    }
+
+    private fun publishProgress(
+        currentPoints: FloatArray,
+        currentCount: Int,
+        acceptedPixels: Int,
+        seedDistanceMetres: Float
+    ) {
+        val maxAccumulated = 4200
+        val stride = max(1, (points.size + maxAccumulated - 1) / maxAccumulated)
+        val accumulated = ArrayList<FloatArray>((points.size + stride - 1) / stride)
+        var index = 0
+        for (point in points.values) {
+            if (index++ % stride == 0) accumulated.add(point.copyOf())
+        }
+        val currentStride = max(1, (currentCount + 1800 - 1) / 1800)
+        val current = ArrayList<FloatArray>((currentCount + currentStride - 1) / currentStride)
+        var i = 0
+        while (i < currentCount) {
+            val offset = i * 3
+            current.add(floatArrayOf(currentPoints[offset], currentPoints[offset + 1], currentPoints[offset + 2]))
+            i += currentStride
+        }
+        progressReady(ScanProgressSnapshot(accumulated, current, viewsCaptured, acceptedPixels, seedDistanceMetres))
     }
 
     private fun voxelKey(x: Float, y: Float, z: Float): Long {
@@ -987,11 +1105,16 @@ private class ScanRenderer(
         private const val ROI_RIGHT_FRACTION = 0.78f
         private const val ROI_TOP_FRACTION = 0.22f
         private const val ROI_BOTTOM_FRACTION = 0.78f
-        private const val MIN_CONFIDENCE = 128
+        private const val MIN_CONFIDENCE = 112
         private const val MIN_DEPTH_METRES = 0.25f
         private const val MAX_DEPTH_METRES = 5.0f
-        private const val VOXEL_SIZE_METRES = 0.008f
+        private const val VOXEL_SIZE_METRES = 0.015f
         private const val MAX_POINTS = 600_000
+        private const val MIN_OBJECT_PIXELS = 24
+        private const val MIN_CAPTURED_VIEWS = 5
+        private const val MIN_OBJECT_POINTS = 180
+        private const val MIN_VIEW_TRANSLATION_METRES = 0.025f
+        private const val MIN_VIEW_ROTATION_RADIANS = 0.07f
         private const val AUTO_CAPTURE_INTERVAL_NS = 350_000_000L
         private const val VERTEX_SHADER = "attribute vec4 aPosition; attribute vec2 aTexCoord; varying vec2 vTexCoord; void main(){ gl_Position=aPosition; vTexCoord=aTexCoord; }"
         private const val FRAGMENT_SHADER = "#extension GL_OES_EGL_image_external : require\nprecision mediump float; uniform samplerExternalOES sTexture; varying vec2 vTexCoord; void main(){ gl_FragColor=texture2D(sTexture, vTexCoord); }"

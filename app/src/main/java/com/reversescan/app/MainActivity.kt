@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.ar.core.ArCoreApk
+import com.google.ar.core.Anchor
 import com.google.ar.core.Config
 import com.google.ar.core.Frame
 import com.google.ar.core.Pose
@@ -44,6 +45,7 @@ import android.opengl.GLSurfaceView.Renderer
 import kotlin.math.acos
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -648,8 +650,7 @@ private class ScanRenderer(
     }
 
     private data class TargetVolume(
-        val pose: Pose,
-        val inversePose: Pose,
+        val anchor: Anchor,
         val minX: Float, val maxX: Float,
         val minY: Float, val maxY: Float,
         val minZ: Float, val maxZ: Float
@@ -734,6 +735,7 @@ private class ScanRenderer(
             if (resetRequested.compareAndSet(true, false)) {
                 points.clear()
                 tsdf.clear()
+                targetVolume?.anchor?.detach()
                 targetVolume = null
                 selectionPolygon.set(null)
                 viewsCaptured = 0
@@ -1071,7 +1073,7 @@ private class ScanRenderer(
                 }
             } else {
                 val lockedMask = BooleanArray(sampledDepth.size)
-                val inverse = activeTarget.inversePose
+                val inverse = activeTarget.anchor.pose.inverse()
                 for (gy in 0 until gridHeight) {
                     val v = roiTop + gy * step
                     for (gx in 0 until gridWidth) {
@@ -1127,6 +1129,12 @@ private class ScanRenderer(
             val currentDepthPoints = FloatArray(selectedComponent.pixelCount * 3)
 
             if (activeTarget == null) {
+                val anchor = session?.createAnchor(pose)
+                if (anchor == null) {
+                    report("Не удалось закрепить предмет в ARCore. Повторите выбор при устойчивом трекинге.")
+                    return
+                }
+                val anchorInverse = anchor.pose.inverse()
                 var minX = Float.POSITIVE_INFINITY
                 var maxX = Float.NEGATIVE_INFINITY
                 var minY = Float.POSITIVE_INFINITY
@@ -1143,17 +1151,18 @@ private class ScanRenderer(
                         val u = roiLeft + gx * step
                         val xLocal = (u - cx) / fx * z
                         val yLocal = -(v - cy) / fy * z
-                        val zLocal = -z
-                        minX = min(minX, xLocal); maxX = max(maxX, xLocal)
-                        minY = min(minY, yLocal); maxY = max(maxY, yLocal)
-                        minZ = min(minZ, zLocal); maxZ = max(maxZ, zLocal)
+                        val world = pose.transformPoint(floatArrayOf(xLocal, yLocal, -z))
+                        val objectLocal = anchorInverse.transformPoint(world)
+                        minX = min(minX, objectLocal[0]); maxX = max(maxX, objectLocal[0])
+                        minY = min(minY, objectLocal[1]); maxY = max(maxY, objectLocal[1])
+                        minZ = min(minZ, objectLocal[2]); maxZ = max(maxZ, objectLocal[2])
                     }
                 }
                 val objectSpan = max(maxX - minX, maxY - minY).coerceAtLeast(0.05f)
                 val xyPadding = max(0.025f, objectSpan * 0.07f)
                 val farPadding = max(0.08f, objectSpan * 0.45f)
                 targetVolume = TargetVolume(
-                    pose, pose.inverse(),
+                    anchor,
                     minX - xyPadding, maxX + xyPadding,
                     minY - xyPadding, maxY + xyPadding,
                     minZ - farPadding, maxZ + 0.035f
@@ -1200,7 +1209,7 @@ private class ScanRenderer(
             viewsCaptured++
             lastSeedDistanceMetres = selectedComponent.seedDepthMetres
             cloudDirty = true
-            publishProgress(currentDepthPoints, accepted, accepted, component.seedDepthMetres)
+            publishProgress(currentDepthPoints, accepted, accepted, selectedComponent.seedDepthMetres)
 
             report(
                 "Захват #$viewsCaptured: $accepted точек глубины (точные raw: $rawDepthCount, плотная карта: $denseDepthCount), " +
@@ -1313,10 +1322,10 @@ private class ScanRenderer(
     }
 
     companion object {
-        private const val ROI_LEFT_FRACTION = 0.22f
-        private const val ROI_RIGHT_FRACTION = 0.78f
-        private const val ROI_TOP_FRACTION = 0.22f
-        private const val ROI_BOTTOM_FRACTION = 0.78f
+        private const val ROI_LEFT_FRACTION = 0.14f
+        private const val ROI_RIGHT_FRACTION = 0.86f
+        private const val ROI_TOP_FRACTION = 0.14f
+        private const val ROI_BOTTOM_FRACTION = 0.86f
         private const val RAW_MIN_CONFIDENCE = 128
         private const val DENSE_DEPTH_CONFIDENCE = 160
         private const val MIN_DEPTH_METRES = 0.25f

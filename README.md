@@ -31,7 +31,7 @@ Native Android 3D scanning prototype built with Kotlin and Google ARCore Depth A
 2. Wait until ARCore reports that the camera is ready.
 3. Place the object in a well-lit, textured scene. Avoid glossy, transparent, black, or moving surfaces.
 4. If needed, turn on **Фонарик**. It uses the active ARCore camera flash when supported.
-5. Keep the object centred inside the on-screen frame and make it fill most of that frame. The scanner attempts to isolate the depth-connected object region from the background; it is not semantic object recognition, so a background touching the object at a similar depth may still be included. Press **Начать скан** and move slowly around the stationary object using overlapping viewpoints.
+5. Keep the object centred under the green crosshair inside the on-screen frame and make it fill most of that frame. The scanner attempts to isolate the depth-connected object region from the background; it is not semantic object recognition, so a background touching the object at a similar depth may still be included. Press **Начать скан** and move slowly around the stationary object using overlapping viewpoints.
 6. Watch both the camera overlay and the live 3D mini-viewport: cyan is retained data; orange is the latest accepted frame. The status line reports accepted viewpoints and points. The screen stays awake while scanning.
 7. Use **Пауза** to stop automatic capture. **Добавить ракурс** captures an additional depth view manually.
 8. Inspect the live overlay before finishing. If a side has no points, move to that side and capture it.

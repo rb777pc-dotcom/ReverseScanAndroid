@@ -134,7 +134,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 scanning = false
                 renderer.setScanning(false)
-                scanButton.text = "Продолжить"
+                scanButton.text = "Начать скан"
                 renderer.requestExport()
             }
         }
@@ -366,6 +366,7 @@ private class ScanRenderer(
     fun requestReset() { resetRequested.set(true) }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        cameraTextureBound = false
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         textureId = createExternalTexture()
         vertexBuffer = ByteBuffer.allocateDirect(vertices.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().put(vertices).apply { position(0) }
@@ -561,7 +562,7 @@ private class ScanRenderer(
     }
 
     private fun voxelKey(x: Float, y: Float, z: Float): Long {
-        val mask = 0x1FFFFF
+        val mask = 0x1FFFFFL
         val qx = (x / VOXEL_SIZE_METRES).roundToInt().coerceIn(-1_048_576, 1_048_575)
         val qy = (y / VOXEL_SIZE_METRES).roundToInt().coerceIn(-1_048_576, 1_048_575)
         val qz = (z / VOXEL_SIZE_METRES).roundToInt().coerceIn(-1_048_576, 1_048_575)

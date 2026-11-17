@@ -37,6 +37,7 @@ import java.util.Date
 import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLSurfaceView.Renderer
@@ -58,6 +59,8 @@ class MainActivity : Activity() {
     private lateinit var previewButton: Button
     private lateinit var torchButton: Button
     private lateinit var livePreview: LiveScanPreviewView
+    private lateinit var guideOverlay: ScanGuideOverlay
+    private lateinit var selectObjectButton: Button
     private var flashAvailable = false
     private var torchEnabled = false
     private var activityResumed = false
@@ -114,7 +117,14 @@ class MainActivity : Activity() {
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
-        root.addView(ScanGuideOverlay(this), FrameLayout.LayoutParams(-1, -1))
+        guideOverlay = ScanGuideOverlay(this).apply {
+            onSelectionComplete = { polygon ->
+                renderer.setSelectionPolygon(polygon)
+                if (::selectObjectButton.isInitialized) selectObjectButton.text = "Контур выбран"
+                status.text = "Контур выделен. Нажмите «Начать скан»: приложение зафиксирует предмет в 3D по глубине."
+            }
+        }
+        root.addView(guideOverlay, FrameLayout.LayoutParams(-1, -1))
         livePreview = LiveScanPreviewView(this)
         livePreview.contentDescription = "Предварительный просмотр накопленной 3D-формы"
         root.addView(livePreview, FrameLayout.LayoutParams(dp(142), dp(166), Gravity.END or Gravity.CENTER_VERTICAL).apply {
@@ -140,7 +150,7 @@ class MainActivity : Activity() {
             maxLines = 2
         }
         val hint = TextView(this).apply {
-            text = "Поместите предмет в центр рамки под зелёный прицел. Обходите неподвижный предмет медленно, с перекрытием ракурсов."
+            text = "Сначала обведите предмет пальцем. Затем обходите неподвижный предмет медленно, сохраняя перекрытие ракурсов."
             textSize = 11f
             setTextColor(0xFFD5DFEA.toInt())
             setPadding(dp(4), 0, dp(4), dp(2))
@@ -155,10 +165,18 @@ class MainActivity : Activity() {
             text = "Начать скан"
             isEnabled = false
             setOnClickListener {
-                setScanningActive(!scanning)
+                if (!scanning && !renderer.hasSelection()) {
+                    guideOverlay.beginSelection()
+                    selectObjectButton.text = "Обведите предмет…"
+                    status.text = "Сначала обведите предмет пальцем внутри рамки. Замкните контур и отпустите палец."
+                    return@setOnClickListener
+                }
+                val start = !scanning
+                if (start) guideOverlay.hideSelectionPath()
+                setScanningActive(start)
                 text = if (scanning) "Пауза" else "Продолжить"
                 status.text = if (scanning) {
-                    "Идёт сканирование. Двигайтесь плавно, не вращайте телефон резко."
+                    "Идёт сканирование зафиксированного предмета. Обходите его плавно со всех сторон."
                 } else {
                     "Сканирование приостановлено. Можно добавить ракурс или сохранить результат."
                 }
@@ -178,6 +196,35 @@ class MainActivity : Activity() {
                 renderer.requestExport()
             }
         }
+        val selectionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        selectObjectButton = Button(this).apply {
+            text = "1. Обвести объект"
+            setOnClickListener {
+                setScanningActive(false)
+                scanButton.text = "Начать скан"
+                renderer.requestReset()
+                guideOverlay.beginSelection()
+                text = "Обведите предмет…"
+                status.text = "Проведите пальцем замкнутый контур вокруг предмета. Не захватывайте фон."
+            }
+        }
+        val clearSelectionButton = Button(this).apply {
+            text = "Сбросить контур"
+            setOnClickListener {
+                setScanningActive(false)
+                scanButton.text = "Начать скан"
+                renderer.requestReset()
+                guideOverlay.cancelSelection()
+                selectObjectButton.text = "1. Обвести объект"
+                status.text = "Выделение и накопленные точки очищены. Можно выбрать другой предмет."
+            }
+        }
+        selectionRow.addView(selectObjectButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
+        selectionRow.addView(clearSelectionButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(3) })
+
         firstRow.addView(scanButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(3) })
         firstRow.addView(captureButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
         firstRow.addView(saveButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(3) })
@@ -206,6 +253,8 @@ class MainActivity : Activity() {
                         pendingMesh = null
                         pendingExportPoints = null
                         renderer.requestReset()
+                        guideOverlay.cancelSelection()
+                        selectObjectButton.text = "1. Обвести объект"
                     }
                     .show()
             }
@@ -228,7 +277,7 @@ class MainActivity : Activity() {
         topPanel.addView(status)
         topPanel.addView(hint)
         val legend = TextView(this).apply {
-            text = "ГОЛУБОЕ — собрано   •   ОРАНЖЕВОЕ — сейчас   •   ПУСТО — ещё не снято"
+            text = "ГОЛУБОЕ — собрано   •   ОРАНЖЕВОЕ — новый кадр   •   ЗЕЛЁНЫЙ — контур выбора"
             textSize = 10f
             setTextColor(Color.WHITE)
             setPadding(dp(4), dp(3), dp(4), dp(2))
@@ -238,6 +287,7 @@ class MainActivity : Activity() {
         root.addView(topPanel, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
             leftMargin = dp(8); rightMargin = dp(8); topMargin = dp(4)
         })
+        panel.addView(selectionRow, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(3) })
         panel.addView(firstRow)
         previewButton = Button(this).apply {
             text = "Просмотр скана"
@@ -545,6 +595,7 @@ private class ScanRenderer(
     private val meshRequested = AtomicBoolean(false)
     private val meshBuilding = AtomicBoolean(false)
     private val resetRequested = AtomicBoolean(false)
+    private val selectionPolygon = AtomicReference<FloatArray?>(null)
     private val flashToggleRequested = AtomicBoolean(false)
     private val cloudPreviewRequested = AtomicBoolean(false)
     private var flashEnabled = false
@@ -556,6 +607,7 @@ private class ScanRenderer(
     private var lastCaptureRotation: FloatArray? = null
     private var lastNoMotionMessageNs = 0L
     private var lastSeedDistanceMetres = 0f
+    @Volatile private var targetVolume: TargetVolume? = null
     private var textureId = -1
     private var program = 0
     private var positionHandle = 0
@@ -595,7 +647,20 @@ private class ScanRenderer(
         lastSurfaceHeight = -1
     }
 
+    private data class TargetVolume(
+        val pose: Pose,
+        val inversePose: Pose,
+        val minX: Float, val maxX: Float,
+        val minY: Float, val maxY: Float,
+        val minZ: Float, val maxZ: Float
+    ) {
+        fun contains(point: FloatArray): Boolean =
+            point[0] in minX..maxX && point[1] in minY..maxY && point[2] in minZ..maxZ
+    }
+
     fun setScanning(value: Boolean) { scanning.set(value) }
+    fun setSelectionPolygon(polygon: FloatArray) { selectionPolygon.set(polygon.copyOf()) }
+    fun hasSelection(): Boolean = selectionPolygon.get() != null || targetVolume != null
     fun requestCapture() { captureRequested.set(true) }
     fun requestExport() { exportRequested.set(true) }
     fun requestMesh() {
@@ -669,6 +734,8 @@ private class ScanRenderer(
             if (resetRequested.compareAndSet(true, false)) {
                 points.clear()
                 tsdf.clear()
+                targetVolume = null
+                selectionPolygon.set(null)
                 viewsCaptured = 0
                 lastCaptureTranslation = null
                 lastCaptureRotation = null
@@ -965,21 +1032,84 @@ private class ScanRenderer(
                 }
             }
 
-            val component = DepthObjectSegmenter.select(
-                sampledDepth, gridWidth, gridHeight, gridWidth / 2, gridHeight / 2
-            )
-            if (component == null || component.pixelCount < MIN_OBJECT_PIXELS) {
-                latestDepthCount = 0
-                latestDepthBuffer = null
-                publishProgress(FloatArray(0), 0, 0, 0f)
-                report(if (validDepthCount == 0) {
-                    "ARCore не сформировал карту глубины. Медленно перемещайте телефон по сцене с деталями; однотонные, блестящие и прозрачные поверхности плохо сканируются."
-                } else {
-                    "Глубина получена ($validDepthCount точек), но предмет не отделился от фона. Наведите крестик на сам предмет."
-                })
-                return
+            var component: DepthObjectSegmenter.Result? = null
+            var activeTarget = targetVolume
+            if (activeTarget == null) {
+                val screenPolygon = selectionPolygon.get()
+                if (screenPolygon == null) {
+                    latestDepthCount = 0
+                    latestDepthBuffer = null
+                    publishProgress(FloatArray(0), 0, 0, 0f)
+                    report("Сначала нажмите «Обвести объект» и обведите предмет пальцем. Сканирование без выбранной цели отключено.")
+                    return
+                }
+                val imagePolygon = FloatArray(screenPolygon.size)
+                frame.transformCoordinates2d(
+                    Coordinates2d.VIEW,
+                    screenPolygon,
+                    Coordinates2d.IMAGE_PIXELS,
+                    imagePolygon
+                )
+                val polygonOnGrid = FloatArray(imagePolygon.size)
+                for (i in imagePolygon.indices step 2) {
+                    polygonOnGrid[i] = (imagePolygon[i] * sx - roiLeft) / step
+                    polygonOnGrid[i + 1] = (imagePolygon[i + 1] * sy - roiTop) / step
+                }
+                component = DepthObjectSegmenter.selectWithinPolygon(
+                    sampledDepth, gridWidth, gridHeight, polygonOnGrid
+                )
+                if (component == null || component.pixelCount < MIN_OBJECT_PIXELS) {
+                    latestDepthCount = 0
+                    latestDepthBuffer = null
+                    publishProgress(FloatArray(0), 0, 0, 0f)
+                    report(if (validDepthCount == 0) {
+                        "ARCore пока не видит глубину. Улучшите освещение и наведите камеру на фактурную поверхность."
+                    } else {
+                        "Контур получен, но внутри него мало надёжных точек глубины ($validDepthCount доступно). Повторите обводку плотнее вокруг предмета."
+                    })
+                    return
+                }
+            } else {
+                val lockedMask = BooleanArray(sampledDepth.size)
+                val inverse = activeTarget.inversePose
+                for (gy in 0 until gridHeight) {
+                    val v = roiTop + gy * step
+                    for (gx in 0 until gridWidth) {
+                        val index = gy * gridWidth + gx
+                        val z = sampledDepth[index]
+                        if (z <= 0f) continue
+                        val u = roiLeft + gx * step
+                        val rayX = (u - cx) / fx
+                        val rayY = -(v - cy) / fy
+                        val world = pose.transformPoint(floatArrayOf(rayX * z, rayY * z, -z))
+                        val objectLocal = inverse.transformPoint(world)
+                        if (activeTarget.contains(objectLocal)) lockedMask[index] = true
+                    }
+                }
+                var lockedCount = 0
+                var nearestIndex = -1
+                var nearestDepth = Float.POSITIVE_INFINITY
+                for (i in lockedMask.indices) {
+                    if (lockedMask[i]) {
+                        lockedCount++
+                        val d = sampledDepth[i]
+                        if (d > 0f && d < nearestDepth) {
+                            nearestDepth = d
+                            nearestIndex = i
+                        }
+                    }
+                }
+                if (lockedCount < MIN_OBJECT_PIXELS || nearestIndex < 0) {
+                    latestDepthCount = 0
+                    latestDepthBuffer = null
+                    publishProgress(FloatArray(0), 0, 0, lastSeedDistanceMetres)
+                    report("Зафиксированный предмет не попал в текущий ракурс. Верните его в кадр и обходите медленнее; цель не переопределяется по фону.")
+                    return
+                }
+                component = DepthObjectSegmenter.Result(lockedMask, nearestDepth, lockedCount)
             }
 
+            val selectedComponent = component ?: return
             if (!isNewCapturePose(pose)) {
                 latestDepthCount = 0
                 latestDepthBuffer = null
@@ -994,12 +1124,50 @@ private class ScanRenderer(
 
             var accepted = 0
             var added = 0
-            val currentDepthPoints = FloatArray(component.pixelCount * 3)
+            val currentDepthPoints = FloatArray(selectedComponent.pixelCount * 3)
+
+            if (activeTarget == null) {
+                var minX = Float.POSITIVE_INFINITY
+                var maxX = Float.NEGATIVE_INFINITY
+                var minY = Float.POSITIVE_INFINITY
+                var maxY = Float.NEGATIVE_INFINITY
+                var minZ = Float.POSITIVE_INFINITY
+                var maxZ = Float.NEGATIVE_INFINITY
+                for (gy in 0 until gridHeight) {
+                    val v = roiTop + gy * step
+                    for (gx in 0 until gridWidth) {
+                        val index = gy * gridWidth + gx
+                        if (!selectedComponent.mask[index]) continue
+                        val z = sampledDepth[index]
+                        if (z <= 0f) continue
+                        val u = roiLeft + gx * step
+                        val xLocal = (u - cx) / fx * z
+                        val yLocal = -(v - cy) / fy * z
+                        val zLocal = -z
+                        minX = min(minX, xLocal); maxX = max(maxX, xLocal)
+                        minY = min(minY, yLocal); maxY = max(maxY, yLocal)
+                        minZ = min(minZ, zLocal); maxZ = max(maxZ, zLocal)
+                    }
+                }
+                val objectSpan = max(maxX - minX, maxY - minY).coerceAtLeast(0.05f)
+                val xyPadding = max(0.025f, objectSpan * 0.07f)
+                val farPadding = max(0.08f, objectSpan * 0.45f)
+                targetVolume = TargetVolume(
+                    pose, pose.inverse(),
+                    minX - xyPadding, maxX + xyPadding,
+                    minY - xyPadding, maxY + xyPadding,
+                    minZ - farPadding, maxZ + 0.035f
+                )
+                activeTarget = targetVolume
+                selectionPolygon.set(null)
+                report("Предмет зафиксирован в 3D-пространстве ARCore. Теперь обходите его; захват ограничен выбранным объёмом.")
+            }
+
             for (gy in 0 until gridHeight) {
                 val v = roiTop + gy * step
                 for (gx in 0 until gridWidth) {
                     val index = gy * gridWidth + gx
-                    if (!component.mask[index]) continue
+                    if (!selectedComponent.mask[index]) continue
                     val u = roiLeft + gx * step
                     val z = sampledDepth[index]
                     val conf = sampledConfidence[index]
@@ -1030,7 +1198,7 @@ private class ScanRenderer(
                     position(0)
                 }
             viewsCaptured++
-            lastSeedDistanceMetres = component.seedDepthMetres
+            lastSeedDistanceMetres = selectedComponent.seedDepthMetres
             cloudDirty = true
             publishProgress(currentDepthPoints, accepted, accepted, component.seedDepthMetres)
 

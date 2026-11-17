@@ -678,7 +678,7 @@ private class ScanRenderer(
                 pointVertexCount = 0
                 latestDepthBuffer = null
                 latestDepthCount = 0
-                progressReady(ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0f))
+                progressReady(ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0, 0f))
                 captureRequested.set(false)
                 exportRequested.set(false)
                 meshRequested.set(false)
@@ -1058,7 +1058,7 @@ private class ScanRenderer(
             current.add(floatArrayOf(currentPoints[offset], currentPoints[offset + 1], currentPoints[offset + 2]))
             i += currentStride
         }
-        progressReady(ScanProgressSnapshot(accumulated, current, viewsCaptured, acceptedPixels, seedDistanceMetres))
+        progressReady(ScanProgressSnapshot(accumulated, current, points.size, viewsCaptured, acceptedPixels, seedDistanceMetres))
     }
 
     private fun voxelKey(x: Float, y: Float, z: Float): Long {

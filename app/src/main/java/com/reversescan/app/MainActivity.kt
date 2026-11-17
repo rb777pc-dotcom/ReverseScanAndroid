@@ -235,7 +235,7 @@ class MainActivity : Activity() {
         }
         root.addView(panel, panelParams)
         val legend = TextView(this).apply {
-            text = "ЗЕЛЁНЫЕ точки — уже записано   •   ЖЁЛТЫЕ — глубина сейчас   •   без точек — ещё не захвачено"
+            text = "ЗЕЛЁНЫЕ точки — уже записано   •   ЖЁЛТЫЕ — последний кадр глубины   •   без точек — ещё не захвачено"
             textSize = 11f
             setTextColor(Color.WHITE)
             setBackgroundColor(0xB91A2230.toInt())
@@ -910,7 +910,7 @@ private class ScanRenderer(
             if (added > 0) {
                 cloudDirty = true
                 viewsCaptured++
-                report("Ракурс #" + viewsCaptured + ": +" + added + " новых точек · всего " + points.size + " · глубина сейчас " + currentDepthCount + " точек. Зелёное — накоплено, жёлтое — текущий кадр.")
+                report("Ракурс #" + viewsCaptured + ": +" + added + " новых точек · всего " + points.size + " · последний кадр: " + currentDepthCount + " точек. Зелёное — накоплено, жёлтое — текущий кадр.")
             } else if (valid == 0) {
                 report("Мало качественных данных глубины. Включите фонарик при необходимости, держите объект в кадре и проверьте освещение.")
             } else {

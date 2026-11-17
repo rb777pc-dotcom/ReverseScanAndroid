@@ -92,7 +92,7 @@ class MeshPreviewView(context: Context, private val mesh: MeshModel) : View(cont
         faces.sortBy { it.depth }
         for (face in faces) {
             val intensity = (70 + 150 * face.shade).toInt().coerceIn(0, 255)
-            fill.color = Color.rgb(intensity / 1.04f .toInt().coerceIn(0, 255), intensity, (intensity * 1.08f).toInt().coerceIn(0, 255))
+            fill.color = Color.rgb((intensity / 1.04f).toInt().coerceIn(0, 255), intensity, (intensity * 1.08f).toInt().coerceIn(0, 255))
             val path = Path().apply {
                 moveTo(face.xy[0], face.xy[1])
                 lineTo(face.xy[2], face.xy[3])

@@ -15,6 +15,7 @@ import kotlin.math.sin
 data class ScanProgressSnapshot(
     val accumulatedPoints: List<FloatArray>,
     val currentFramePoints: List<FloatArray>,
+    val totalPoints: Int,
     val viewsCaptured: Int,
     val acceptedPixels: Int,
     val seedDistanceMetres: Float
@@ -48,7 +49,7 @@ class LiveScanPreviewView(context: Context) : View(context) {
         textAlign = Paint.Align.CENTER
     }
 
-    private var snapshot = ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0f)
+    private var snapshot = ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0, 0f)
     private var yaw = 0.65f
     private var pitch = -0.25f
     private var lastX = 0f
@@ -77,9 +78,9 @@ class LiveScanPreviewView(context: Context) : View(context) {
         }
 
         detailPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText("СОХРАНЕНО: ${all.size} точек", 9f * density, height - 25f * density, detailPaint)
+        canvas.drawText("СОБРАНО: ${snapshot.totalPoints} · КАДР: ${snapshot.acceptedPixels}", 9f * density, height - 25f * density, detailPaint)
         val distance = if (snapshot.seedDistanceMetres > 0f) String.format(java.util.Locale.US, "%.2f м", snapshot.seedDistanceMetres) else "—"
-        canvas.drawText("РАКУРСЫ: ${snapshot.viewsCaptured}   ДИСТАНЦИЯ: $distance", 9f * density, height - 11f * density, detailPaint)
+        canvas.drawText("РАКУРСЫ: ${snapshot.viewsCaptured} · $distance", 9f * density, height - 11f * density, detailPaint)
     }
 
     private fun drawCloud(canvas: Canvas, retained: List<FloatArray>, current: List<FloatArray>) {
@@ -104,7 +105,7 @@ class LiveScanPreviewView(context: Context) : View(context) {
         val cz = (minZ + maxZ) * 0.5f
         val extent = max(max(maxX - minX, maxY - minY), maxZ - minZ).coerceAtLeast(0.04f)
         val plot = RectF(8f * density, 23f * density, width - 8f * density, height - 38f * density)
-        val focal = min(plot.width(), plot.height()) * 0.72f / extent.coerceAtLeast(0.12f)
+        val focal = min(plot.width(), plot.height()) * 1.8f
         val distance = 2.8f
         val projected = ArrayList<Projected>(retained.size + current.size)
 

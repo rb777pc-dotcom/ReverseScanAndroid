@@ -702,6 +702,72 @@ private class ScanRenderer(
         GLES20.glDepthMask(true)
     }
 
+    private fun drawPointOverlay(frame: Frame) {
+        if (points.isEmpty() && latestDepthCount == 0) return
+        try {
+            frame.camera.getViewMatrix(viewMatrix, 0)
+            frame.camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+            Matrix.multiplyMM(mvpMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+            if (cloudDirty) rebuildPointCloudBuffer()
+
+            GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+            GLES20.glDepthFunc(GLES20.GL_LEQUAL)
+            GLES20.glEnable(GLES20.GL_BLEND)
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            GLES20.glUseProgram(pointProgram)
+            GLES20.glUniformMatrix4fv(pointMvpHandle, 1, false, mvpMatrix, 0)
+
+            pointBuffer?.let { buffer ->
+                if (pointVertexCount > 0) {
+                    GLES20.glUniform4f(pointColorHandle, 0.12f, 1f, 0.28f, 0.82f)
+                    GLES20.glUniform1f(pointSizeHandle, 5.5f)
+                    buffer.position(0)
+                    GLES20.glEnableVertexAttribArray(pointPositionHandle)
+                    GLES20.glVertexAttribPointer(pointPositionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer)
+                    GLES20.glDrawArrays(GLES20.GL_POINTS, 0, pointVertexCount)
+                    GLES20.glDisableVertexAttribArray(pointPositionHandle)
+                }
+            }
+            latestDepthBuffer?.let { buffer ->
+                if (latestDepthCount > 0) {
+                    GLES20.glUniform4f(pointColorHandle, 1f, 0.72f, 0.05f, 0.98f)
+                    GLES20.glUniform1f(pointSizeHandle, 7.5f)
+                    buffer.position(0)
+                    GLES20.glEnableVertexAttribArray(pointPositionHandle)
+                    GLES20.glVertexAttribPointer(pointPositionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer)
+                    GLES20.glDrawArrays(GLES20.GL_POINTS, 0, latestDepthCount)
+                    GLES20.glDisableVertexAttribArray(pointPositionHandle)
+                }
+            }
+            GLES20.glDisable(GLES20.GL_BLEND)
+            GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        } catch (e: Exception) {
+            report("Не удалось показать карту сканирования: " + (e.localizedMessage ?: e.javaClass.simpleName))
+        }
+    }
+
+    private fun rebuildPointCloudBuffer() {
+        cloudDirty = false
+        if (points.isEmpty()) {
+            pointBuffer = null
+            pointVertexCount = 0
+            return
+        }
+        val maxDrawPoints = 120_000
+        val stride = max(1, (points.size + maxDrawPoints - 1) / maxDrawPoints)
+        val drawCount = (points.size + stride - 1) / stride
+        val bytes = ByteBuffer.allocateDirect(drawCount * 3 * 4).order(ByteOrder.nativeOrder())
+        val buffer = bytes.asFloatBuffer()
+        var index = 0
+        for (point in points.values) {
+            if (index % stride == 0) buffer.put(point, 0, 3)
+            index++
+        }
+        buffer.flip()
+        pointBuffer = buffer
+        pointVertexCount = buffer.limit() / 3
+    }
+
     private fun captureDepth(frame: Frame) {
         var depthImage: android.media.Image? = null
         var confidenceImage: android.media.Image? = null
@@ -739,6 +805,8 @@ private class ScanRenderer(
             var valid = 0
             var added = 0
             val step = if (width >= 320) 3 else 2
+            val currentDepthPoints = FloatArray(((width + step - 1) / step) * ((height + step - 1) / step) * 3)
+            var currentDepthCount = 0
 
             for (v in 0 until height step step) {
                 for (u in 0 until width step step) {
@@ -759,6 +827,13 @@ private class ScanRenderer(
                     val x = rayX * z
                     val y = rayY * z
                     val world = pose.transformPoint(floatArrayOf(x, y, -z))
+                    if (currentDepthCount * 3 + 2 < currentDepthPoints.size) {
+                        val offset = currentDepthCount * 3
+                        currentDepthPoints[offset] = world[0]
+                        currentDepthPoints[offset + 1] = world[1]
+                        currentDepthPoints[offset + 2] = world[2]
+                        currentDepthCount++
+                    }
                     tsdf.integratePixel(pose, rayX, rayY, z, if (conf >= 200) 3 else 1)
                     val key = voxelKey(world[0], world[1], world[2])
                     if (!points.containsKey(key) && points.size < MAX_POINTS) {
@@ -768,11 +843,21 @@ private class ScanRenderer(
                 }
             }
 
+            latestDepthCount = currentDepthCount
+            latestDepthBuffer = if (currentDepthCount > 0) {
+                ByteBuffer.allocateDirect(currentDepthCount * 3 * 4).order(ByteOrder.nativeOrder())
+                    .asFloatBuffer().apply {
+                        put(currentDepthPoints, 0, currentDepthCount * 3)
+                        position(0)
+                    }
+            } else null
+
             if (added > 0) {
+                cloudDirty = true
                 viewsCaptured++
-                report("Ракурс #${viewsCaptured}: +${added} новых точек · всего ${points.size}. Продолжайте медленный обход.")
+                report("Ракурс #" + viewsCaptured + ": +" + added + " новых точек · всего " + points.size + " · глубина сейчас " + currentDepthCount + " точек. Зелёное — накоплено, жёлтое — текущий кадр.")
             } else if (valid == 0) {
-                report("Мало качественных данных глубины. Добавьте света, держите объект в кадре на расстоянии 0,5–2 м.")
+                report("Мало качественных данных глубины. Включите фонарик при необходимости, держите объект в кадре и проверьте освещение.")
             } else {
                 report("Новых точек почти нет. Смените угол обзора и направьте камеру на ещё не просканированную сторону.")
             }

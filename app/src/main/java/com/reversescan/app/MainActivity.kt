@@ -73,6 +73,7 @@ class MainActivity : Activity() {
         val root = FrameLayout(this).apply { setPadding(0, dp(24), 0, dp(24)) }
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
+            setEGLConfigChooser(8, 8, 8, 8, 16, 0)
             preserveEGLContextOnPause = true
         }
         renderer = ScanRenderer(

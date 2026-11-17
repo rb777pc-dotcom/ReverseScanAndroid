@@ -140,7 +140,7 @@ class MainActivity : Activity() {
             maxLines = 2
         }
         val hint = TextView(this).apply {
-            text = "Поместите предмет внутрь рамки, чтобы он занимал большую её часть. Медленно обходите неподвижный предмет с перекрывающимися ракурсами."
+            text = "Поместите предмет в центр рамки под зелёный прицел. Обходите неподвижный предмет медленно, с перекрытием ракурсов."
             textSize = 11f
             setTextColor(0xFFD5DFEA.toInt())
             setPadding(dp(4), 0, dp(4), dp(2))
@@ -228,7 +228,7 @@ class MainActivity : Activity() {
         topPanel.addView(status)
         topPanel.addView(hint)
         val legend = TextView(this).apply {
-            text = "ГОЛУБОЕ — уже собрано   •   ОРАНЖЕВОЕ — текущий кадр предмета"
+            text = "ГОЛУБОЕ — собрано   •   ОРАНЖЕВОЕ — сейчас   •   ПУСТО — ещё не снято"
             textSize = 10f
             setTextColor(Color.WHITE)
             setPadding(dp(4), dp(3), dp(4), dp(2))

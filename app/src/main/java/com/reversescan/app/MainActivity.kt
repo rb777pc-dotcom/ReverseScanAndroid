@@ -858,20 +858,44 @@ private class ScanRenderer(
 
     private fun captureDepth(frame: Frame) {
         var depthImage: android.media.Image? = null
+        var rawDepthImage: android.media.Image? = null
         var confidenceImage: android.media.Image? = null
         try {
-            depthImage = frame.acquireRawDepthImage16Bits()
-            confidenceImage = frame.acquireRawDepthConfidenceImage()
+            if (frame.camera.trackingState != TrackingState.TRACKING) {
+                report("ARCore пока не отслеживает движение камеры. Медленно наведите её на сцену с хорошо различимыми деталями.")
+                return
+            }
+
+            // Dense depth is the baseline. High-confidence raw measurements refine it;
+            // sparse/low-confidence raw pixels no longer cause the whole frame to be rejected.
+            depthImage = frame.acquireDepthImage16Bits()
+            try {
+                rawDepthImage = frame.acquireRawDepthImage16Bits()
+                confidenceImage = frame.acquireRawDepthConfidenceImage()
+            } catch (_: Exception) {
+                rawDepthImage?.close()
+                rawDepthImage = null
+                confidenceImage?.close()
+                confidenceImage = null
+            }
+
             val depthPlane = depthImage.planes[0]
-            val confidencePlane = confidenceImage.planes[0]
             val depth = depthPlane.buffer.order(ByteOrder.LITTLE_ENDIAN)
-            val confidence = confidencePlane.buffer
             val width = depthImage.width
             val height = depthImage.height
             val depthRowStride = depthPlane.rowStride
             val depthPixelStride = depthPlane.pixelStride
-            val confRowStride = confidencePlane.rowStride
-            val confPixelStride = confidencePlane.pixelStride
+
+            val rawIsCurrent = rawDepthImage != null &&
+                confidenceImage != null &&
+                rawDepthImage.width == width &&
+                rawDepthImage.height == height &&
+                rawDepthImage.timestamp == frame.timestamp
+            val rawDepthPlane = if (rawIsCurrent) rawDepthImage!!.planes[0] else null
+            val rawDepth = rawDepthPlane?.buffer?.order(ByteOrder.LITTLE_ENDIAN)
+            val rawConfidencePlane = if (rawIsCurrent) confidenceImage!!.planes[0] else null
+            val rawConfidence = rawConfidencePlane?.buffer
+
             val intrinsics = frame.camera.imageIntrinsics
             val focal = FloatArray(2)
             val principal = FloatArray(2)
@@ -901,26 +925,43 @@ private class ScanRenderer(
             val sampledDepth = FloatArray(gridWidth * gridHeight)
             val sampledConfidence = IntArray(gridWidth * gridHeight)
             var validDepthCount = 0
+            var rawDepthCount = 0
+            var denseDepthCount = 0
 
-            // First pass: compact depth map; the centre of the frame is the target seed.
+            // Dense depth supplies most pixels. Prefer raw depth only at confidence >= 128/255.
             for (gy in 0 until gridHeight) {
                 val v = roiTop + gy * step
                 for (gx in 0 until gridWidth) {
                     val u = roiLeft + gx * step
                     val dOffset = v * depthRowStride + u * depthPixelStride
                     if (dOffset < 0 || dOffset + 1 >= depth.limit()) continue
-                    val millimetres = depth.getShort(dOffset).toInt() and 0x1FFF
-                    if (millimetres == 0) continue
-                    val cOffset = v * confRowStride + u * confPixelStride
-                    if (cOffset < 0 || cOffset >= confidence.limit()) continue
-                    val conf = confidence.get(cOffset).toInt() and 0xFF
-                    if (conf < MIN_CONFIDENCE) continue
-                    val z = millimetres / 1000f
-                    if (z < MIN_DEPTH_METRES || z > MAX_DEPTH_METRES) continue
+
+                    val denseMillimetres = depth.getShort(dOffset).toInt() and 0xFFFF
+                    var z = if (denseMillimetres > 0) denseMillimetres / 1000f else 0f
+                    var conf = if (z > 0f) DENSE_DEPTH_CONFIDENCE else 0
+
+                    if (rawDepth != null && rawConfidence != null &&
+                        rawDepthPlane != null && rawConfidencePlane != null) {
+                        val rawOffset = v * rawDepthPlane.rowStride + u * rawDepthPlane.pixelStride
+                        val confOffset = v * rawConfidencePlane.rowStride + u * rawConfidencePlane.pixelStride
+                        if (rawOffset >= 0 && rawOffset + 1 < rawDepth.limit() &&
+                            confOffset >= 0 && confOffset < rawConfidence.limit()) {
+                            val rawMillimetres = rawDepth.getShort(rawOffset).toInt() and 0xFFFF
+                            val rawConf = rawConfidence.get(confOffset).toInt() and 0xFF
+                            if (rawMillimetres > 0 && rawConf >= RAW_MIN_CONFIDENCE) {
+                                z = rawMillimetres / 1000f
+                                conf = rawConf
+                                rawDepthCount++
+                            }
+                        }
+                    }
+
+                    if (z < MIN_DEPTH_METRES || z > MAX_DEPTH_METRES || conf <= 0) continue
                     val index = gy * gridWidth + gx
                     sampledDepth[index] = z
                     sampledConfidence[index] = conf
                     validDepthCount++
+                    if (conf == DENSE_DEPTH_CONFIDENCE) denseDepthCount++
                 }
             }
 
@@ -932,9 +973,9 @@ private class ScanRenderer(
                 latestDepthBuffer = null
                 publishProgress(FloatArray(0), 0, 0, 0f)
                 report(if (validDepthCount == 0) {
-                    "Глубина не распознана. Улучшите освещение и наведите центр рамки на предмет."
+                    "ARCore не сформировал карту глубины. Медленно перемещайте телефон по сцене с деталями; однотонные, блестящие и прозрачные поверхности плохо сканируются."
                 } else {
-                    "Не удалось выделить сам предмет. Поставьте его точно в центр рамки и отделите фон от предмета."
+                    "Глубина получена ($validDepthCount точек), но предмет не отделился от фона. Наведите крестик на сам предмет."
                 })
                 return
             }
@@ -962,7 +1003,7 @@ private class ScanRenderer(
                     val u = roiLeft + gx * step
                     val z = sampledDepth[index]
                     val conf = sampledConfidence[index]
-                    if (z <= 0f || conf < MIN_CONFIDENCE) continue
+                    if (z <= 0f || conf <= 0) continue
                     accepted++
 
                     val rayX = (u - cx) / fx
@@ -994,22 +1035,22 @@ private class ScanRenderer(
             publishProgress(currentDepthPoints, accepted, accepted, component.seedDepthMetres)
 
             report(
-                "Захват #$viewsCaptured: выделен предмет — $accepted точек глубины, +$added новых точек; всего в скане ${points.size}. " +
-                    "Справа: голубое — уже собрано, оранжевое — этот кадр."
+                "Захват #$viewsCaptured: $accepted точек глубины (точные raw: $rawDepthCount, плотная карта: $denseDepthCount), " +
+                    "+$added новых точек; всего в скане \${points.size}. Голубое — собрано, оранжевое — текущий кадр."
             )
             if (points.size >= MAX_POINTS) {
                 scanning.set(false)
                 report("Достигнут лимит $MAX_POINTS точек. Остановите сканирование и проверьте 3D-заготовку.")
             }
         } catch (e: Exception) {
-            val reason = e.localizedMessage ?: "попробуйте изменить расстояние и освещение"
-            report("Не удалось получить глубину: $reason")
+            val reason = e.localizedMessage ?: e.javaClass.simpleName
+            report("ARCore не отдал карту глубины: $reason. Проверьте отслеживание камеры и плавно перемещайте телефон.")
         } finally {
             depthImage?.close()
+            rawDepthImage?.close()
             confidenceImage?.close()
         }
     }
-
     private fun isNewCapturePose(pose: Pose): Boolean {
         val translation = pose.translation
         val rotation = pose.rotationQuaternion
@@ -1108,7 +1149,8 @@ private class ScanRenderer(
         private const val ROI_RIGHT_FRACTION = 0.78f
         private const val ROI_TOP_FRACTION = 0.22f
         private const val ROI_BOTTOM_FRACTION = 0.78f
-        private const val MIN_CONFIDENCE = 112
+        private const val RAW_MIN_CONFIDENCE = 128
+        private const val DENSE_DEPTH_CONFIDENCE = 160
         private const val MIN_DEPTH_METRES = 0.25f
         private const val MAX_DEPTH_METRES = 5.0f
         private const val VOXEL_SIZE_METRES = 0.015f

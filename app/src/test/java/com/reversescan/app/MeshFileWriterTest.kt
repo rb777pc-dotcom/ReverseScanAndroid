@@ -30,7 +30,7 @@ class MeshFileWriterTest {
         MeshFileWriter.writeStl(mesh, output)
         val bytes = output.toByteArray()
         assertEquals(134, bytes.size) // 80-byte header + 4-byte count + one 50-byte triangle
-        val firstVertexX = ByteBuffer.wrap(bytes, 96, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat()
+        val firstVertexX = ByteBuffer.wrap(bytes, 108, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat()
         assertEquals(1000f, firstVertexX, 0.001f)
         assertTrue(bytes.copyOfRange(80, 84).contentEquals(byteArrayOf(1, 0, 0, 0)))
     }

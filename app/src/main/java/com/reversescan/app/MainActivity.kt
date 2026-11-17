@@ -171,6 +171,8 @@ class MainActivity : Activity() {
                         scanning = false
                         renderer.setScanning(false)
                         scanButton.text = "Начать скан"
+                        pendingMesh = null
+                        pendingExportPoints = null
                         renderer.requestReset()
                     }
                     .show()
@@ -422,6 +424,7 @@ private class ScanRenderer(
     private val captureRequested = AtomicBoolean(false)
     private val exportRequested = AtomicBoolean(false)
     private val meshRequested = AtomicBoolean(false)
+    private val meshBuilding = AtomicBoolean(false)
     private val resetRequested = AtomicBoolean(false)
     private val scanning = AtomicBoolean(false)
     private val points = LinkedHashMap<Long, FloatArray>()
@@ -456,7 +459,9 @@ private class ScanRenderer(
     fun setScanning(value: Boolean) { scanning.set(value) }
     fun requestCapture() { captureRequested.set(true) }
     fun requestExport() { exportRequested.set(true) }
-    fun requestMesh() { meshRequested.set(true) }
+    fun requestMesh() {
+        if (meshBuilding.compareAndSet(false, true)) meshRequested.set(true)
+    }
     fun requestReset() { resetRequested.set(true) }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -509,6 +514,7 @@ private class ScanRenderer(
                 captureRequested.set(false)
                 exportRequested.set(false)
                 meshRequested.set(false)
+                meshBuilding.set(false)
                 report("Новый скан готов. Облако и объём глубины очищены.")
             }
 
@@ -526,12 +532,14 @@ private class ScanRenderer(
                 scanning.set(false)
                 val volumeSnapshot = tsdf.snapshot()
                 if (volumeSnapshot.size < 8) {
+                    meshBuilding.set(false)
                     report("Недостаточно данных для 3D-сетки. Сначала просканируйте объект с нескольких сторон.")
                 } else {
                     report("Строю поверхность из ${volumeSnapshot.size} объёмных ячеек. Это может занять время…")
                     Thread({
                         try {
                             val model = MeshReconstructor.reconstruct(volumeSnapshot, tsdf.voxelSize)
+                            meshBuilding.set(false)
                             activity.runOnUiThread {
                                 if (model.isEmpty) {
                                     report("Поверхность не сформировалась. Нужны перекрывающиеся ракурсы, больше данных и ровное движение.")
@@ -541,10 +549,12 @@ private class ScanRenderer(
                                 }
                             }
                         } catch (e: Exception) {
+                            meshBuilding.set(false)
                             activity.runOnUiThread {
                                 report("Ошибка построения 3D-сетки: ${e.localizedMessage ?: e.javaClass.simpleName}")
                             }
                         } catch (e: OutOfMemoryError) {
+                            meshBuilding.set(false)
                             activity.runOnUiThread {
                                 report("Недостаточно памяти для этой сетки. Сканируйте меньший участок и попробуйте снова.")
                             }

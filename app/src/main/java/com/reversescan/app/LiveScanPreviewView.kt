@@ -18,6 +18,7 @@ data class ScanProgressSnapshot(
     val totalPoints: Int,
     val viewsCaptured: Int,
     val acceptedPixels: Int,
+    val rejectedDepthPixels: Int,
     val seedDistanceMetres: Float
 )
 
@@ -49,7 +50,7 @@ class LiveScanPreviewView(context: Context) : View(context) {
         textAlign = Paint.Align.CENTER
     }
 
-    private var snapshot = ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0, 0f)
+    private var snapshot = ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0, 0, 0f)
     private var yaw = 0.65f
     private var pitch = -0.25f
     private var lastX = 0f
@@ -78,9 +79,9 @@ class LiveScanPreviewView(context: Context) : View(context) {
         }
 
         detailPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText("СОБРАНО: ${snapshot.totalPoints} · КАДР: ${snapshot.acceptedPixels}", 9f * density, height - 25f * density, detailPaint)
+        canvas.drawText("СОБРАНО: ${snapshot.totalPoints} · ПРИНЯТО: ${snapshot.acceptedPixels}", 9f * density, height - 25f * density, detailPaint)
         val distance = if (snapshot.seedDistanceMetres > 0f) String.format(java.util.Locale.US, "%.2f м", snapshot.seedDistanceMetres) else "—"
-        canvas.drawText("РАКУРСЫ: ${snapshot.viewsCaptured} · $distance", 9f * density, height - 11f * density, detailPaint)
+        canvas.drawText("ФОН ОТБРОШЕН: ${snapshot.rejectedDepthPixels} · ${snapshot.viewsCaptured} ракурсов · $distance", 9f * density, height - 11f * density, detailPaint)
     }
 
     private fun drawCloud(canvas: Canvas, retained: List<FloatArray>, current: List<FloatArray>) {

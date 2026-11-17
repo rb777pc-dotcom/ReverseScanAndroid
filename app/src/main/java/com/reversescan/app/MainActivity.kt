@@ -224,7 +224,7 @@ private class ScanRenderer(private val activity: Activity, private val report: (
     }
 
     private fun drawCamera(frame: Frame) {
-        val input = floatArrayOf(0f,0f, 1f,0f, 0f,1f, 1f,1f)
+        val input = vertices
         val transformed = FloatArray(8)
         frame.transformCoordinates2d(Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES, input, Coordinates2d.TEXTURE_NORMALIZED, transformed)
         texBuffer.clear(); texBuffer.put(transformed); texBuffer.position(0)

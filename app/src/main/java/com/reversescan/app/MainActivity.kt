@@ -561,7 +561,8 @@ private class ScanRenderer(
                 report("Достигнут лимит ${MAX_POINTS} точек. Сохраните результат в PLY.")
             }
         } catch (e: Exception) {
-            report("Не удалось получить глубину: ${e.localizedMessage ?: "попробуйте изменить расстояние и освещение"}")
+            val reason = e.localizedMessage ?: "попробуйте изменить расстояние и освещение"
+            report("Не удалось получить глубину: $reason")
         } finally {
             depthImage?.close()
             confidenceImage?.close()

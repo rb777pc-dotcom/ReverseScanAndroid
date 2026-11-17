@@ -50,6 +50,7 @@ class ScanGuideOverlay(context: Context) : View(context) {
 
     private val lassoPoints = ArrayList<PointF>()
     private var selectionMode = false
+    private var selectionLocked = false
     var onSelectionComplete: ((FloatArray) -> Unit)? = null
 
     init {
@@ -60,20 +61,22 @@ class ScanGuideOverlay(context: Context) : View(context) {
 
     fun beginSelection() {
         lassoPoints.clear()
+        selectionLocked = false
         selectionMode = true
         invalidate()
     }
 
     fun cancelSelection() {
         selectionMode = false
+        selectionLocked = false
         lassoPoints.clear()
         invalidate()
     }
 
-    /** Hides the screen-space contour after it has been converted to a world-space lock. */
+    /** Keep the contour visible during scanning so the user can see the selected object. */
     fun hideSelectionPath() {
         selectionMode = false
-        lassoPoints.clear()
+        selectionLocked = true
         invalidate()
     }
 
@@ -169,7 +172,7 @@ class ScanGuideOverlay(context: Context) : View(context) {
             canvas.drawPath(path, lassoPaint)
             lassoPoints.forEach { canvas.drawCircle(it.x, it.y, 2.4f * density, pointPaint) }
             if (!selectionMode && lassoPoints.size >= 3) {
-                val label = "КОНТУР ВЫБРАН"
+                val label = if (selectionLocked) "ЦЕЛЬ ЗАФИКСИРОВАНА · ЗЕЛЁНЫЙ КОНТУР" else "КОНТУР ВЫБРАН"
                 canvas.drawText(label, 12f * density, height - 18f * density, labelPaint)
             }
         }

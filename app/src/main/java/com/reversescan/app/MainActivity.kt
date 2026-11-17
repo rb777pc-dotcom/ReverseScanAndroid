@@ -101,6 +101,7 @@ class MainActivity : Activity() {
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
+        root.addView(ScanGuideOverlay(this), FrameLayout.LayoutParams(-1, -1))
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -121,7 +122,7 @@ class MainActivity : Activity() {
             maxLines = 4
         }
         val hint = TextView(this).apply {
-            text = "Держите объект в кадре и медленно обходите его на расстоянии примерно 0,5–2 м. Для полного охвата снимайте со всех сторон."
+            text = "Поместите предмет внутрь рамки, чтобы он занимал большую её часть. Медленно обходите неподвижный предмет с перекрывающимися ракурсами."
             textSize = 12f
             setTextColor(0xFFD5DFEA.toInt())
             setPadding(dp(4), 0, dp(4), dp(6))
@@ -860,11 +861,15 @@ private class ScanRenderer(
             var valid = 0
             var added = 0
             val step = if (width >= 320) 3 else 2
+            val roiLeft = (width * ROI_LEFT_FRACTION).toInt()
+            val roiRight = (width * ROI_RIGHT_FRACTION).toInt()
+            val roiTop = (height * ROI_TOP_FRACTION).toInt()
+            val roiBottom = (height * ROI_BOTTOM_FRACTION).toInt()
             val currentDepthPoints = FloatArray(((width + step - 1) / step) * ((height + step - 1) / step) * 3)
             var currentDepthCount = 0
 
-            for (v in 0 until height step step) {
-                for (u in 0 until width step step) {
+            for (v in roiTop until roiBottom step step) {
+                for (u in roiLeft until roiRight step step) {
                     val dOffset = v * depthRowStride + u * depthPixelStride
                     if (dOffset < 0 || dOffset + 1 >= depth.limit()) continue
                     val packed = depth.getShort(dOffset).toInt() and 0xFFFF
@@ -973,6 +978,10 @@ private class ScanRenderer(
     }
 
     companion object {
+        private const val ROI_LEFT_FRACTION = 0.20f
+        private const val ROI_RIGHT_FRACTION = 0.80f
+        private const val ROI_TOP_FRACTION = 0.18f
+        private const val ROI_BOTTOM_FRACTION = 0.82f
         private const val MIN_CONFIDENCE = 128
         private const val MIN_DEPTH_METRES = 0.25f
         private const val MAX_DEPTH_METRES = 5.0f

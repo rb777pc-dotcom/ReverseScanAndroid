@@ -983,10 +983,10 @@ private class ScanRenderer(
     }
 
     companion object {
-        private const val ROI_LEFT_FRACTION = 0.20f
-        private const val ROI_RIGHT_FRACTION = 0.80f
-        private const val ROI_TOP_FRACTION = 0.26f
-        private const val ROI_BOTTOM_FRACTION = 0.74f
+        private const val ROI_LEFT_FRACTION = 0.22f
+        private const val ROI_RIGHT_FRACTION = 0.78f
+        private const val ROI_TOP_FRACTION = 0.22f
+        private const val ROI_BOTTOM_FRACTION = 0.78f
         private const val MIN_CONFIDENCE = 128
         private const val MIN_DEPTH_METRES = 0.25f
         private const val MAX_DEPTH_METRES = 5.0f

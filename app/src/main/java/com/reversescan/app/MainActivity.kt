@@ -209,7 +209,7 @@ class MainActivity : Activity() {
         panel.addView(hint)
         panel.addView(firstRow)
         previewButton = Button(this).apply {
-            text = "Посмотреть накопленный скан"
+            text = "Просмотр скана"
             isEnabled = false
             setOnClickListener {
                 scanning = false
@@ -218,8 +218,14 @@ class MainActivity : Activity() {
                 renderer.requestPointCloudPreview()
             }
         }
-        panel.addView(previewButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
-        panel.addView(meshButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
+        meshButton.text = "Построить 3D"
+        val inspectRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        inspectRow.addView(previewButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(3) })
+        inspectRow.addView(meshButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(3) })
+        panel.addView(inspectRow, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
         panel.addView(resetButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
 
         val panelParams = FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {

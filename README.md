@@ -9,6 +9,7 @@ Native Android 3D scanning prototype built with Kotlin and Google ARCore Depth A
 - ARCore automatic depth acquisition with confidence filtering.
 - Live camera overlay: green points show accumulated scan data; yellow points show the latest depth capture; areas without points have not yet been captured.
 - Live scan counters for captured viewpoints and depth samples.
+- Rotatable point-cloud inspection dialog before triangle-mesh reconstruction.
 - ARCore flash/torch toggle when the active camera configuration supports it.
 - Continuous capture while scanning, plus manual single-view capture.
 - Multi-view accumulation in a scan-local coordinate frame.
@@ -31,9 +32,10 @@ Native Android 3D scanning prototype built with Kotlin and Google ARCore Depth A
 6. Watch the live overlay: green points are accumulated data; yellow points are the latest depth frame; uncovered areas show no scan points. The status line reports accepted viewpoints and point counts.
 7. Use **Пауза** to stop automatic capture. **Добавить ракурс** captures an additional depth view manually.
 8. Inspect the live overlay before finishing. If a side has no points, move to that side and capture it.
-9. **Сохранить PLY** exports the accumulated point cloud. **Построить 3D-модель** reconstructs a triangle surface from the TSDF volume.
-10. Drag the preview to inspect it. Export as OBJ or STL from the preview dialog.
-11. Use **Новый скан — очистить данные** before scanning another object.
+9. Press **Просмотр скана** to rotate and inspect the accumulated point cloud before reconstruction. Close it and continue scanning if coverage is missing.
+10. **Сохранить PLY** exports the accumulated point cloud. **Построить 3D** reconstructs a triangle surface from the TSDF volume.
+11. Drag the mesh preview to inspect it. Export as OBJ or STL from the preview dialog.
+12. Use **Новый скан — очистить данные** before scanning another object.
 
 Recommended initial range is about 0.5–2 m. ARCore Depth API's usable range and quality depend on device, firmware, light, texture, motion, and object material.
 

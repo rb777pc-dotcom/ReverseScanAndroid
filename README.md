@@ -14,7 +14,7 @@ Native Android 3D scanning prototype built with Kotlin and Google ARCore Depth A
 - Interactive shaded mesh preview; drag to rotate the result.
 - PLY point-cloud export.
 - OBJ triangle-mesh export (coordinates in metres).
-- ASCII STL triangle-mesh export (coordinates converted to millimetres).
+- Binary STL triangle-mesh export (coordinates converted to millimetres).
 - System file picker for saving exports.
 - Reset of the current scan and volume.
 

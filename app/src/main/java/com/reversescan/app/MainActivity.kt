@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private lateinit var captureButton: Button
     private lateinit var saveButton: Button
     private lateinit var meshButton: Button
+    private lateinit var previewButton: Button
     private lateinit var torchButton: Button
     private var flashAvailable = false
     private var torchEnabled = false
@@ -94,7 +95,8 @@ class MainActivity : Activity() {
                     if (::torchButton.isInitialized) torchButton.text = if (enabled) "Фонарик: вкл" else if (flashAvailable) "Фонарик: выкл" else "Фонарик недоступен"
                     if (message.isNotBlank() && ::status.isInitialized) status.text = message
                 }
-            }
+            },
+            { snapshot -> runOnUiThread { showPointCloudPreview(snapshot) } }
         )
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -206,6 +208,17 @@ class MainActivity : Activity() {
         panel.addView(status)
         panel.addView(hint)
         panel.addView(firstRow)
+        previewButton = Button(this).apply {
+            text = "Посмотреть накопленный скан"
+            isEnabled = false
+            setOnClickListener {
+                scanning = false
+                renderer.setScanning(false)
+                scanButton.text = "Продолжить"
+                renderer.requestPointCloudPreview()
+            }
+        }
+        panel.addView(previewButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
         panel.addView(meshButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
         panel.addView(resetButton, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
 
@@ -285,6 +298,7 @@ class MainActivity : Activity() {
             captureButton.isEnabled = true
             saveButton.isEnabled = true
             meshButton.isEnabled = true
+            previewButton.isEnabled = true
             status.text = "Камера готова. Запрошен автофокус. Нажмите «Начать скан» или добавляйте ракурсы вручную."
         } catch (e: Exception) {
             arSession?.close()
@@ -336,6 +350,32 @@ class MainActivity : Activity() {
         dialog.show()
         dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94f).toInt(),
             (resources.displayMetrics.heightPixels * 0.72f).toInt())
+    }
+
+    private fun showPointCloudPreview(points: List<FloatArray>) {
+        if (points.isEmpty()) {
+            status.text = "Пока нет захваченных точек. Начните сканирование или добавьте ракурс."
+            return
+        }
+        val preview = PointCloudPreviewView(this, points).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.58f).toInt()
+            )
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Накопленный скан · ${points.size} точек")
+            .setView(preview)
+            .setPositiveButton("Продолжить сканирование") { _, _ ->
+                scanning = true
+                renderer.setScanning(true)
+                scanButton.text = "Пауза"
+            }
+            .setNegativeButton("Закрыть", null)
+            .create()
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94f).toInt(),
+            (resources.displayMetrics.heightPixels * 0.74f).toInt())
     }
 
     private fun launchCreateMeshDocument(format: String) {
@@ -468,7 +508,8 @@ private class ScanRenderer(
     private val report: (String) -> Unit,
     private val exportReady: (List<FloatArray>) -> Unit,
     private val meshReady: (MeshModel) -> Unit,
-    private val flashChanged: (Boolean, String) -> Unit
+    private val flashChanged: (Boolean, String) -> Unit,
+    private val cloudReady: (List<FloatArray>) -> Unit
 ) : Renderer {
     @Volatile private var session: Session? = null
     private val captureRequested = AtomicBoolean(false)
@@ -477,6 +518,7 @@ private class ScanRenderer(
     private val meshBuilding = AtomicBoolean(false)
     private val resetRequested = AtomicBoolean(false)
     private val flashToggleRequested = AtomicBoolean(false)
+    private val cloudPreviewRequested = AtomicBoolean(false)
     private var flashEnabled = false
     private val scanning = AtomicBoolean(false)
     private val points = LinkedHashMap<Long, FloatArray>()
@@ -529,6 +571,7 @@ private class ScanRenderer(
     }
     fun requestReset() { resetRequested.set(true) }
     fun requestFlashToggle() { flashToggleRequested.set(true) }
+    fun requestPointCloudPreview() { cloudPreviewRequested.set(true) }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         cameraTextureBound = false
@@ -605,6 +648,11 @@ private class ScanRenderer(
                 meshRequested.set(false)
                 meshBuilding.set(false)
                 report("Новый скан готов. Облако и объём глубины очищены.")
+            }
+
+            if (cloudPreviewRequested.compareAndSet(true, false)) {
+                if (points.isEmpty()) report("Пока нет накопленных точек для просмотра.")
+                else cloudReady(points.values.map { it.copyOf() })
             }
 
             if (exportRequested.compareAndSet(true, false)) {

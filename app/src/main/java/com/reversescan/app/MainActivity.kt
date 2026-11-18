@@ -747,7 +747,7 @@ private class ScanRenderer(
                 pointVertexCount = 0
                 latestDepthBuffer = null
                 latestDepthCount = 0
-                progressReady(ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0, 0f))
+                progressReady(ScanProgressSnapshot(emptyList(), emptyList(), 0, 0, 0, 0, 0f))
                 captureRequested.set(false)
                 exportRequested.set(false)
                 meshRequested.set(false)

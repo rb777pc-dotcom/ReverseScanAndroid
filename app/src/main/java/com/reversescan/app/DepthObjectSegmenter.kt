@@ -132,7 +132,6 @@ object DepthObjectSegmenter {
             for (dy in -1..1) for (dx in -1..1) {
                 if (dx == 0 && dy == 0) continue
                 if (dx != 0 && dy != 0) continue
-                    if (dx != 0 && dy != 0) continue
                 val nx = x + dx
                 val ny = y + dy
                 if (nx !in 0 until width || ny !in 0 until height) continue
@@ -195,7 +194,6 @@ object DepthObjectSegmenter {
             for (dy in -1..1) for (dx in -1..1) {
                 if (dx == 0 && dy == 0) continue
                 if (dx != 0 && dy != 0) continue
-                    if (dx != 0 && dy != 0) continue
                 val nx = x + dx
                 val ny = y + dy
                 if (nx !in 0 until width || ny !in 0 until height) continue

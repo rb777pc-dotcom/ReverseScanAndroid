@@ -17,8 +17,8 @@ object DepthObjectSegmenter {
         width: Int,
         height: Int,
         polygon: FloatArray,
-        minimumStepMetres: Float = 0.055f,
-        relativeStep: Float = 0.04f
+        minimumStepMetres: Float = 0.018f,
+        relativeStep: Float = 0.012f
     ): Result? {
         if (width <= 0 || height <= 0 || depths.size != width * height || polygon.size < 6 || polygon.size % 2 != 0) return null
 
@@ -64,10 +64,11 @@ object DepthObjectSegmenter {
             val x = index % width
             val y = index / width
             val currentDepth = depths[index]
-            val threshold = max(minimumStepMetres, currentDepth * relativeStep)
+            val threshold = min(0.035f, max(minimumStepMetres, currentDepth * relativeStep))
             for (dy in -1..1) {
                 for (dx in -1..1) {
                     if (dx == 0 && dy == 0) continue
+                    if (dx != 0 && dy != 0) continue
                     val nx = x + dx
                     val ny = y + dy
                     if (nx !in 0 until width || ny !in 0 until height) continue
@@ -96,8 +97,8 @@ object DepthObjectSegmenter {
         allowed: BooleanArray,
         seedX: Int,
         seedY: Int,
-        minimumStepMetres: Float = 0.055f,
-        relativeStep: Float = 0.04f
+        minimumStepMetres: Float = 0.018f,
+        relativeStep: Float = 0.012f
     ): Result? {
         if (width <= 0 || height <= 0 || depths.size != width * height || allowed.size != depths.size) return null
         var seed = -1
@@ -127,9 +128,11 @@ object DepthObjectSegmenter {
             val x = index % width
             val y = index / width
             val currentDepth = depths[index]
-            val threshold = max(minimumStepMetres, currentDepth * relativeStep)
+            val threshold = min(0.035f, max(minimumStepMetres, currentDepth * relativeStep))
             for (dy in -1..1) for (dx in -1..1) {
                 if (dx == 0 && dy == 0) continue
+                if (dx != 0 && dy != 0) continue
+                    if (dx != 0 && dy != 0) continue
                 val nx = x + dx
                 val ny = y + dy
                 if (nx !in 0 until width || ny !in 0 until height) continue
@@ -154,8 +157,8 @@ object DepthObjectSegmenter {
         seedX: Int = width / 2,
         seedY: Int = height / 2,
         seedSearchRadius: Int = 8,
-        minimumStepMetres: Float = 0.055f,
-        relativeStep: Float = 0.04f
+        minimumStepMetres: Float = 0.018f,
+        relativeStep: Float = 0.012f
     ): Result? {
         if (width <= 0 || height <= 0 || depths.size != width * height) return null
         var seed = -1
@@ -188,9 +191,11 @@ object DepthObjectSegmenter {
             val x = index % width
             val y = index / width
             val currentDepth = depths[index]
-            val threshold = max(minimumStepMetres, currentDepth * relativeStep)
+            val threshold = min(0.035f, max(minimumStepMetres, currentDepth * relativeStep))
             for (dy in -1..1) for (dx in -1..1) {
                 if (dx == 0 && dy == 0) continue
+                if (dx != 0 && dy != 0) continue
+                    if (dx != 0 && dy != 0) continue
                 val nx = x + dx
                 val ny = y + dy
                 if (nx !in 0 until width || ny !in 0 until height) continue

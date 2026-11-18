@@ -1,0 +1,104 @@
+name: Build Strata 3D scanner (full native)
+
+on:
+  push:
+    branches: [strata-migration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/system-images /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - name: Checkout ReverseScanAndroid (build launcher)
+        uses: actions/checkout@v4
+
+      - name: Checkout Strata:3D source
+        uses: actions/checkout@v4
+        with:
+          repository: damzenquis/Strata-3D
+          ref: main
+          path: strata
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build components
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-37.2" "build-tools;36.0.0" "ndk;29.0.14206865" "cmake;3.22.1"
+          yes | sdkmanager --licenses
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          df -h
+
+      - name: Install native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git curl ninja-build python3 python3-pip pkg-config
+          cmake --version
+          ninja --version
+
+      - name: Adapt upstream native scripts for Linux runner
+        working-directory: strata
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ["tools/recon/build.sh", "tools/recon/openmvs/build_openmvs.sh"]:
+              p = Path(name)
+              s = p.read_text()
+              s = s.replace('SDK="${ANDROID_HOME:-$LOCALAPPDATA/Android/Sdk}"', 'SDK="${ANDROID_HOME:?ANDROID_HOME is not set}"')
+              s = s.replace('"-DCMAKE_MAKE_PROGRAM=$CM/ninja.exe"', '"-DCMAKE_MAKE_PROGRAM=ninja"')
+              s = s.replace('"$CM/cmake"', 'cmake')
+              p.write_text(s)
+          PY
+          grep -nE 'SDK=|CMAKE_MAKE_PROGRAM|cmake --build' tools/recon/build.sh tools/recon/openmvs/build_openmvs.sh
+
+      - name: Build MVE and texturing tools (Android arm64)
+        working-directory: strata
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: |
+          chmod +x tools/recon/build.sh tools/recon/openmvs/build_openmvs.sh
+          tools/recon/build.sh
+          df -h
+
+      - name: Build OpenMVS tools (Android arm64)
+        working-directory: strata
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: |
+          tools/recon/openmvs/build_openmvs.sh
+          df -h
+
+      - name: Run unit tests and build full APK
+        working-directory: strata
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: |
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          ./gradlew testDebugUnitTest
+          ./gradlew assembleDebug
+          ls -lh app/build/outputs/apk/debug/
+
+      - name: Upload full scanner APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReverseScan-Strata-full
+          path: strata/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14

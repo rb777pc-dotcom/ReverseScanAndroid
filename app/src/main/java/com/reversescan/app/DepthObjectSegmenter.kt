@@ -108,7 +108,7 @@ object DepthObjectSegmenter {
             if (z <= 0f || !z.isFinite()) continue
             val dx = i % width - seedX
             val dy = i / width - seedY
-            val distance = dx * dx + dy * dy.toFloat()
+            val distance = dx.toFloat() * dx + dy.toFloat() * dy
             if (distance < bestDistance) {
                 bestDistance = distance
                 seed = i

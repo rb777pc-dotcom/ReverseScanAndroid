@@ -73,10 +73,12 @@ class ScanGuideOverlay(context: Context) : View(context) {
         invalidate()
     }
 
-    /** Keep the contour visible during scanning so the user can see the selected object. */
+    /** The lasso is only an initial screen-space selection gesture. It must disappear
+     * once scanning starts; the persistent target is rendered by ARCore in world space. */
     fun hideSelectionPath() {
         selectionMode = false
-        selectionLocked = true
+        selectionLocked = false
+        lassoPoints.clear()
         invalidate()
     }
 

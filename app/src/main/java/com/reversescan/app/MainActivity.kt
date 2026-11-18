@@ -152,7 +152,7 @@ class MainActivity : Activity() {
             maxLines = 2
         }
         val hint = TextView(this).apply {
-            text = "Сначала обведите предмет пальцем. Затем обходите неподвижный предмет медленно, сохраняя перекрытие ракурсов."
+            text = "Обведите предмет один раз. После фиксации зелёная 3D-рамка остаётся на месте, пока вы обходите его камерой."
             textSize = 11f
             setTextColor(0xFFD5DFEA.toInt())
             setPadding(dp(4), 0, dp(4), dp(2))
@@ -279,7 +279,7 @@ class MainActivity : Activity() {
         topPanel.addView(status)
         topPanel.addView(hint)
         val legend = TextView(this).apply {
-            text = "ЗЕЛЁНЫЙ — выбранный предмет   •   ОРАНЖЕВЫЙ — текущий кадр   •   ГОЛУБОЙ — накоплено"
+            text = "ЗЕЛЁНАЯ 3D-РАМКА — закреплённая цель   •   ОРАНЖЕВЫЙ — текущий кадр   •   ГОЛУБОЙ — накоплено"
             textSize = 10f
             setTextColor(Color.WHITE)
             setPadding(dp(4), dp(3), dp(4), dp(2))
@@ -731,6 +731,7 @@ private class ScanRenderer(
             if (frame.timestamp == 0L) return
             drawCamera(frame)
             drawPointOverlay(frame)
+            drawTargetVolume(frame)
 
             if (resetRequested.compareAndSet(true, false)) {
                 points.clear()
@@ -903,6 +904,60 @@ private class ScanRenderer(
         }
     }
 
+    /** Draws the selected target as a world-anchored 3D wireframe, not a screen-space lasso. */
+    private fun drawTargetVolume(frame: Frame) {
+        val target = targetVolume ?: return
+        if (target.anchor.trackingState != TrackingState.TRACKING) return
+        try {
+            frame.camera.getViewMatrix(viewMatrix, 0)
+            frame.camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+            Matrix.multiplyMM(mvpMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+            val corners = arrayOf(
+                floatArrayOf(target.minX, target.minY, target.minZ),
+                floatArrayOf(target.maxX, target.minY, target.minZ),
+                floatArrayOf(target.maxX, target.maxY, target.minZ),
+                floatArrayOf(target.minX, target.maxY, target.minZ),
+                floatArrayOf(target.minX, target.minY, target.maxZ),
+                floatArrayOf(target.maxX, target.minY, target.maxZ),
+                floatArrayOf(target.maxX, target.maxY, target.maxZ),
+                floatArrayOf(target.minX, target.maxY, target.maxZ)
+            )
+            val edges = intArrayOf(
+                0,1, 1,2, 2,3, 3,0,
+                4,5, 5,6, 6,7, 7,4,
+                0,4, 1,5, 2,6, 3,7
+            )
+            val anchorPose = target.anchor.pose
+            val vertices = FloatArray(edges.size * 3)
+            var offset = 0
+            for (cornerIndex in edges) {
+                val world = anchorPose.transformPoint(corners[cornerIndex])
+                vertices[offset++] = world[0]
+                vertices[offset++] = world[1]
+                vertices[offset++] = world[2]
+            }
+            val buffer = ByteBuffer.allocateDirect(vertices.size * 4)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer().apply {
+                    put(vertices)
+                    position(0)
+                }
+            GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+            GLES20.glDepthFunc(GLES20.GL_LEQUAL)
+            GLES20.glUseProgram(pointProgram)
+            GLES20.glUniformMatrix4fv(pointMvpHandle, 1, false, mvpMatrix, 0)
+            GLES20.glUniform4f(pointColorHandle, 0.12f, 1.0f, 0.48f, 1.0f)
+            GLES20.glUniform1f(pointSizeHandle, 2f)
+            GLES20.glLineWidth(3f)
+            GLES20.glEnableVertexAttribArray(pointPositionHandle)
+            GLES20.glVertexAttribPointer(pointPositionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer)
+            GLES20.glDrawArrays(GLES20.GL_LINES, 0, edges.size)
+            GLES20.glDisableVertexAttribArray(pointPositionHandle)
+            GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        } catch (e: Exception) {
+            report("Не удалось отобразить пространственную привязку: ${e.localizedMessage ?: e.javaClass.simpleName}")
+        }
+    }
+
     private fun rebuildPointCloudBuffer() {
         cloudDirty = false
         if (points.isEmpty()) {
@@ -1072,7 +1127,7 @@ private class ScanRenderer(
                     return
                 }
             } else {
-                val lockedMask = BooleanArray(sampledDepth.size)
+                val allowedMask = BooleanArray(sampledDepth.size)
                 val inverse = activeTarget.anchor.pose.inverse()
                 for (gy in 0 until gridHeight) {
                     val v = roiTop + gy * step
@@ -1085,30 +1140,31 @@ private class ScanRenderer(
                         val rayY = -(v - cy) / fy
                         val world = pose.transformPoint(floatArrayOf(rayX * z, rayY * z, -z))
                         val objectLocal = inverse.transformPoint(world)
-                        if (activeTarget.contains(objectLocal)) lockedMask[index] = true
+                        if (activeTarget.contains(objectLocal)) allowedMask[index] = true
                     }
                 }
-                var lockedCount = 0
-                var nearestIndex = -1
-                var nearestDepth = Float.POSITIVE_INFINITY
-                for (i in lockedMask.indices) {
-                    if (lockedMask[i]) {
-                        lockedCount++
-                        val d = sampledDepth[i]
-                        if (d > 0f && d < nearestDepth) {
-                            nearestDepth = d
-                            nearestIndex = i
-                        }
-                    }
-                }
-                if (lockedCount < MIN_OBJECT_PIXELS || nearestIndex < 0) {
+                val targetCenterLocal = floatArrayOf(
+                    (activeTarget.minX + activeTarget.maxX) * 0.5f,
+                    (activeTarget.minY + activeTarget.maxY) * 0.5f,
+                    (activeTarget.minZ + activeTarget.maxZ) * 0.5f
+                )
+                val targetCenterWorld = activeTarget.anchor.pose.transformPoint(targetCenterLocal)
+                val targetCenterCamera = pose.inverse().transformPoint(targetCenterWorld)
+                val centerDepth = -targetCenterCamera[2]
+                val seedU = if (centerDepth > 0.05f) fx * targetCenterCamera[0] / centerDepth + cx else cx
+                val seedV = if (centerDepth > 0.05f) cy - fy * targetCenterCamera[1] / centerDepth else cy
+                val seedGridX = ((seedU - roiLeft) / step).roundToInt().coerceIn(0, gridWidth - 1)
+                val seedGridY = ((seedV - roiTop) / step).roundToInt().coerceIn(0, gridHeight - 1)
+                component = DepthObjectSegmenter.selectWithinMask(
+                    sampledDepth, gridWidth, gridHeight, allowedMask, seedGridX, seedGridY
+                )
+                if (component == null || component!!.pixelCount < MIN_OBJECT_PIXELS) {
                     latestDepthCount = 0
                     latestDepthBuffer = null
                     publishProgress(FloatArray(0), 0, 0, lastSeedDistanceMetres)
-                    report("Зафиксированный предмет не попал в текущий ракурс. Верните его в кадр и обходите медленнее; цель не переопределяется по фону.")
+                    report("Цель закреплена в пространстве, но в этом ракурсе нет связной поверхности объекта. Медленно измените угол и расстояние.")
                     return
                 }
-                component = DepthObjectSegmenter.Result(lockedMask, nearestDepth, lockedCount)
             }
 
             val selectedComponent = component ?: return
@@ -1158,14 +1214,16 @@ private class ScanRenderer(
                         minZ = min(minZ, objectLocal[2]); maxZ = max(maxZ, objectLocal[2])
                     }
                 }
-                val objectSpan = max(maxX - minX, maxY - minY).coerceAtLeast(0.05f)
-                val xyPadding = max(0.025f, objectSpan * 0.07f)
-                val farPadding = max(0.08f, objectSpan * 0.45f)
+                val objectSpan = max(max(maxX - minX, maxY - minY), maxZ - minZ).coerceAtLeast(0.08f)
+                // The first depth view is only the visible face. Expand the fixed 3D target
+                // in all directions so later side and rear views can enter the same volume.
+                val xyPadding = max(0.045f, objectSpan * 0.35f)
+                val zPadding = max(0.10f, objectSpan * 0.70f)
                 targetVolume = TargetVolume(
                     anchor,
                     minX - xyPadding, maxX + xyPadding,
                     minY - xyPadding, maxY + xyPadding,
-                    minZ - farPadding, maxZ + 0.035f
+                    minZ - zPadding, maxZ + zPadding
                 )
                 activeTarget = targetVolume
                 selectionPolygon.set(null)

@@ -77,7 +77,7 @@ class ScanGuideOverlay(context: Context) : View(context) {
      * once scanning starts; the persistent target is rendered by ARCore in world space. */
     fun hideSelectionPath() {
         selectionMode = false
-        selectionLocked = false
+        selectionLocked = true
         lassoPoints.clear()
         invalidate()
     }
@@ -160,7 +160,7 @@ class ScanGuideOverlay(context: Context) : View(context) {
             canvas.drawCircle(centerX, centerY, centerRadius, centerPaint)
             canvas.drawLine(centerX - centerRadius * 1.8f, centerY, centerX + centerRadius * 1.8f, centerY, centerPaint)
             canvas.drawLine(centerX, centerY - centerRadius * 1.8f, centerX, centerY + centerRadius * 1.8f, centerPaint)
-            val label = "СНАЧАЛА ВЫДЕЛИТЕ ПРЕДМЕТ"
+            val label = if (selectionLocked) "ЦЕЛЬ ЗАКРЕПЛЕНА В 3D · ОБХОДИТЕ ЕЁ КАМЕРОЙ" else "СНАЧАЛА ВЫДЕЛИТЕ ПРЕДМЕТ"
             canvas.drawText(label, (width - labelPaint.measureText(label)) * 0.5f, top - 10f * density, labelPaint)
         }
 

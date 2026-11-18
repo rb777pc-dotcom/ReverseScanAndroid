@@ -85,6 +85,67 @@ object DepthObjectSegmenter {
         return Result(mask, depths[seed], count)
     }
 
+    /**
+     * Selects the depth-connected component inside a world-space projected target mask.
+     * The seed is the projected centre of the fixed AR target, not the screen centre.
+     */
+    fun selectWithinMask(
+        depths: FloatArray,
+        width: Int,
+        height: Int,
+        allowed: BooleanArray,
+        seedX: Int,
+        seedY: Int,
+        minimumStepMetres: Float = 0.055f,
+        relativeStep: Float = 0.04f
+    ): Result? {
+        if (width <= 0 || height <= 0 || depths.size != width * height || allowed.size != depths.size) return null
+        var seed = -1
+        var bestDistance = Float.POSITIVE_INFINITY
+        for (i in allowed.indices) {
+            if (!allowed[i]) continue
+            val z = depths[i]
+            if (z <= 0f || !z.isFinite()) continue
+            val dx = i % width - seedX
+            val dy = i / width - seedY
+            val distance = dx * dx + dy * dy.toFloat()
+            if (distance < bestDistance) {
+                bestDistance = distance
+                seed = i
+            }
+        }
+        if (seed < 0) return null
+
+        val mask = BooleanArray(depths.size)
+        val queue = ArrayDeque<Int>()
+        queue.add(seed)
+        mask[seed] = true
+        var count = 0
+        while (queue.isNotEmpty()) {
+            val index = queue.removeFirst()
+            count++
+            val x = index % width
+            val y = index / width
+            val currentDepth = depths[index]
+            val threshold = max(minimumStepMetres, currentDepth * relativeStep)
+            for (dy in -1..1) for (dx in -1..1) {
+                if (dx == 0 && dy == 0) continue
+                val nx = x + dx
+                val ny = y + dy
+                if (nx !in 0 until width || ny !in 0 until height) continue
+                val next = ny * width + nx
+                if (!allowed[next] || mask[next]) continue
+                val nextDepth = depths[next]
+                if (nextDepth <= 0f || !nextDepth.isFinite()) continue
+                if (abs(nextDepth - currentDepth) <= threshold) {
+                    mask[next] = true
+                    queue.add(next)
+                }
+            }
+        }
+        return Result(mask, depths[seed], count)
+    }
+
     /** Kept for focused tests and diagnostics; selects a component around a centre seed. */
     fun select(
         depths: FloatArray,

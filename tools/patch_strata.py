@@ -200,23 +200,8 @@ viewer = viewer.replace("import androidx.compose.material.icons.outlined.Volunte
 viewer = viewer.replace("                        InfoPage.SUPPORT to Icons.Outlined.VolunteerActivism, InfoPage.HELP to Icons.AutoMirrored.Outlined.HelpOutline,", "                        InfoPage.HELP to Icons.AutoMirrored.Outlined.HelpOutline,")
 p.write_text(viewer)
 
-# A 6-degree step gives smoother coverage progression; a slightly longer inter-shot
-# interval prevents the automatic shutter from firing in bursts while the phone is moving.
-replace_once(
-    "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
-    "val stepDeg: Double = 6.0,",
-    "val stepDeg: Double = 9.0,"
-)
-replace_once(
-    "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
-    "val steadyMs: Long = 120,",
-    "val steadyMs: Long = 150,"
-)
-replace_once(
-    "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
-    "val minIntervalMs: Long = 550,",
-    "val minIntervalMs: Long = 400,"
-)
+# Keep the upstream, unit-tested shutter defaults (9 degrees, 150 ms steady, 400 ms interval).
+# Do not rewrite these values: CoverageRingsTest and SmartShutterTest validate them.
 
 # Do not accept a reconstruction whose camera alignment is below the quality target:
 # the former 30% emergency threshold allowed sparse/degenerate geometry to continue.

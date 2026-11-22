@@ -308,35 +308,20 @@ replace_once(
         fun sfmSequential(scene: String, setting: SfmSetting, previousFrames: Int = 8) =
             listOf("--max-pixels=\${setting.maxPixels}", "--video-matching=$previousFrames", scene)'''
 )
-replace_once(
+def replace_region(path, start_marker, end_marker, replacement):
+    p = ROOT / path
+    source = p.read_text()
+    start = source.find(start_marker)
+    end = source.find(end_marker, start + len(start_marker))
+    if start < 0 or end < 0:
+        raise SystemExit(f"Expected region not found in {path}; refusing partial patch")
+    p.write_text(source[:start] + replacement + source[end:])
+
+replace_region(
     "app/src/main/java/app/strata3d/capture/recon/ReconRunner.kt",
-    '''        // MVE searches for the initial photo pair in parallel and takes whichever thread finds one first, so the pair
-        // varies between runs, and a poor pair collapses the solution. On the A17 bottle, 3 of 6 four-thread runs
-        // placed 3-15 of 58 photos; single-threaded, the search is deterministic (first-ranked pair) and placed 47
-        // every time. The matching is saved in prebundle.sfm, so re-solving skips features and matching (2-40 s).
-        var attempt = 1
-        var singleThreaded = -1
-        if (placed < ReconPlan.goodPlacement(views)) {
-            Log.w(TAG, "SfM placed only $placed of $views photos; re-solving single-threaded")
-            attempt++
-            exec("sfmrecon", ReconPlan.Args.sfm(scene.path, settings.sfm), Stage.CAMERAS, threads = 1)
-            placed = registeredViews()
-            singleThreaded = placed
-        }
-        while (placed < ReconPlan.goodPlacement(views) && attempt < ReconPlan.SFM_ATTEMPTS) {
-            Log.w(TAG, "SfM placed only $placed of $views photos; re-solving (attempt \${attempt + 1})")
-            attempt++
-            exec("sfmrecon", ReconPlan.Args.sfm(scene.path, settings.sfm), Stage.CAMERAS, settings.threads)
-            placed = registeredViews()
-        }
-        if (placed < singleThreaded) {
-            // The random retries did worse than the deterministic one: reproduce it.
-            exec("sfmrecon", ReconPlan.Args.sfm(scene.path, settings.sfm), Stage.CAMERAS, threads = 1)
-            placed = registeredViews()
-        }
-        Log.i(TAG, "SfM placed $placed of $views photos after $attempt attempt(s) (\${settings.reason})")''',
-    '''        // A retry must not silently reuse prebundle.sfm: that file contains the old feature
-        // matches. First try a fresh sequential match graph for a handheld orbit capture.
+    "        var attempt = 1\\n        var singleThreaded = -1",
+    "        status = status.copy(photos = views, placed = placed)",
+    """        // Rebuild feature matches for a sequential fallback; never reuse stale prebundle.sfm.
         var attempt = 1
         val firstPlaced = placed
         if (placed < ReconPlan.goodPlacement(views)) {
@@ -344,20 +329,15 @@ replace_once(
             attempt++
             File(scene, "prebundle.sfm").delete()
             File(scene, "synth_0.out").delete()
-            exec(
-                "sfmrecon",
-                ReconPlan.Args.sfmSequential(scene.path, settings.sfm, 8),
-                Stage.CAMERAS,
-                threads = 1,
-            )
+            exec("sfmrecon", ReconPlan.Args.sfmSequential(scene.path, settings.sfm, 8), Stage.CAMERAS, threads = 1)
             placed = registeredViews()
             if (placed < firstPlaced) {
-                // Do not continue with a worse camera solution. The original exhaustive
-                // graph is not safe to reuse after the scene has been re-solved.
                 throw Stop(Error.TOO_FEW_PHOTOS_PLACED,
-                    "sequential matching placed $placed photos, below the initial $firstPlaced; capture needs more overlap")
+                    "sequential matching placed $placed photos, below the initial $firstPlaced")
             }
         }
-        Log.i(TAG, "SfM placed $placed of $views photos after $attempt distinct matching attempt(s) (\${settings.reason})")'''
+        Log.i(TAG, "SfM placed $placed of $views photos after $attempt distinct matching attempt(s) (${settings.reason})")
+""",
 )
+
 print("Added fresh sequential SfM matching fallback and fresh exhaustive comparison.")

@@ -21,6 +21,14 @@ replace_once(
     "var sfmOk = exec(\"sfmrecon\", ReconPlan.Args.sfm(scene.path, settings.sfm), Stage.CAMERAS, threads = 1,\n            guardMb = if (settings.sfm == ReconPlan.SfmSetting.HIGH) ReconPlan.GUARD_MB else null)"
 )
 
+# Always start in automatic capture when motion sensors are available. Do not restore a
+# previous manual selection silently; that was a common reason users had to tap every shot.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "val mode = if (!sensors.available) Mode.MANUAL else Mode.entries.firstOrNull { it.name == prefs.getString(KEY_MODE, null) } ?: Mode.SMART",
+    "val mode = if (!sensors.available) Mode.MANUAL else Mode.SMART"
+)
+
 # Make the two-ring coverage indicator readable and explain what the app is doing.
 replace_once(
     "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",

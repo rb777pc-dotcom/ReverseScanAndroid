@@ -319,7 +319,7 @@ def replace_region(path, start_marker, end_marker, replacement):
 
 replace_region(
     "app/src/main/java/app/strata3d/capture/recon/ReconRunner.kt",
-    "        var attempt = 1\\n        var singleThreaded = -1",
+    "        var attempt = 1\n        var singleThreaded = -1",
     "        status = status.copy(photos = views, placed = placed)",
     """        // Rebuild feature matches for a sequential fallback; never reuse stale prebundle.sfm.
         var attempt = 1

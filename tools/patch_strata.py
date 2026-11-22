@@ -204,18 +204,18 @@ p.write_text(viewer)
 # interval prevents the automatic shutter from firing in bursts while the phone is moving.
 replace_once(
     "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
-    "val stepDeg: Double = 9.0,",
-    "val stepDeg: Double = 6.0,"
+    "val stepDeg: Double = 6.0,",
+    "val stepDeg: Double = 9.0,"
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
-    "val steadyMs: Long = 150,",
-    "val steadyMs: Long = 120,"
+    "val steadyMs: Long = 120,",
+    "val steadyMs: Long = 150,"
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
-    "val minIntervalMs: Long = 400,",
-    "val minIntervalMs: Long = 550,"
+    "val minIntervalMs: Long = 550,",
+    "val minIntervalMs: Long = 400,"
 )
 
 # Do not accept a reconstruction whose camera alignment is below the quality target:

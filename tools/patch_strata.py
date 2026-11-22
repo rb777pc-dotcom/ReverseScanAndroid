@@ -186,4 +186,60 @@ def translate(path, mapping):
 
 translate("app/src/main/res/values/strings_capture.xml", capture_ru)
 translate("app/src/main/res/values/strings_recon.xml", recon_ru)
+
+# Rebrand the launcher and remove the upstream donation/support destination from navigation.
+translate("app/src/main/res/values/strings.xml", {"app_name": "ReverseScan 3D"})
+p = ROOT / "app/src/main/java/app/strata3d/ui/InfoPages.kt"
+info = p.read_text()
+info = info.replace("SUPPORT(R.string.info_support), HELP(R.string.info_help), ABOUT(R.string.info_about),", "HELP(R.string.info_help), ABOUT(R.string.info_about),")
+info = info.replace("                        InfoPage.SUPPORT -> Body(stringResource(R.string.support_body))\n", "")
+p.write_text(info)
+p = ROOT / "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
+viewer = p.read_text()
+viewer = viewer.replace("import androidx.compose.material.icons.outlined.VolunteerActivism\\n", "")
+viewer = viewer.replace("                        InfoPage.SUPPORT to Icons.Outlined.VolunteerActivism, InfoPage.HELP to Icons.AutoMirrored.Outlined.HelpOutline,", "                        InfoPage.HELP to Icons.AutoMirrored.Outlined.HelpOutline,")
+p.write_text(viewer)
+
+# A 6-degree step gives smoother coverage progression; a slightly longer inter-shot
+# interval prevents the automatic shutter from firing in bursts while the phone is moving.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
+    "val stepDeg: Double = 9.0,",
+    "val stepDeg: Double = 6.0,"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
+    "val steadyMs: Long = 150,",
+    "val steadyMs: Long = 120,"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/shutter/SmartShutter.kt",
+    "val minIntervalMs: Long = 400,",
+    "val minIntervalMs: Long = 550,"
+)
+
+# Do not accept a reconstruction whose camera alignment is below the quality target:
+# the former 30% emergency threshold allowed sparse/degenerate geometry to continue.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/recon/ReconRunner.kt",
+    "if (placed < ReconPlan.minPlacement(views)) {",
+    "if (placed < ReconPlan.goodPlacement(views)) {"
+)
+
+# Translate the information pages while preserving the original author and AGPL notices.
+translate("app/src/main/res/values/strings_info.xml", {
+    "info_support": "Поддержка",
+    "info_help": "Помощь",
+    "info_about": "О приложении",
+    "info_credits": "Авторы и компоненты",
+    "info_license": "Лицензии",
+    "info_close": "Закрыть",
+    "support_body": "Раздел поддержки отключён.",
+    "about_body": "ReverseScan 3D — приложение для просмотра и создания трёхмерных моделей непосредственно на телефоне. Открывайте STL, OBJ, PLY, 3MF, glTF и GLB. Сканируйте неподвижные предметы камерой и создавайте текстурированные 3D-модели из фотографий без отправки данных в интернет.",
+    "about_thanks": "Сведения об авторах и используемых компонентах приведены в разделе «Авторы и компоненты».",
+    "license_copyright": "Авторские права на исходный проект Strata:3D принадлежат David Morales. ReverseScan 3D содержит модификации исходного проекта.",
+    "license_full": "Полный текст лицензии GNU AGPL v3",
+    "license_notices": "Уведомления о сторонних компонентах"
+})
+
 print("Applied Russian capture/reconstruction UI, larger coverage dial, and deterministic SfM first pass.")

@@ -175,8 +175,12 @@ def translate(path, mapping):
     for key, value in mapping.items():
         pattern = rf'(<string\s+name="{re.escape(key)}">).*?(</string>)'
         s, n = re.subn(pattern, lambda m: m.group(1) + value.replace("&", "&amp;").replace("'", "\\'") + m.group(2), s, count=1, flags=re.S)
-        if n != 1:
-            raise SystemExit(f"String {key} not found exactly once in {path}")
+        if n == 0:
+            # New guidance labels are appended when the upstream resource does not define them yet.
+            line = f'    <string name="{key}">{value.replace("&", "&amp;").replace("'", "\\\\'")}</string>\\n'
+            s = s.replace("</resources>", line + "</resources>")
+        elif n != 1:
+            raise SystemExit(f"String {key} appears more than once in {path}")
     p.write_text(s)
 
 translate("app/src/main/res/values/strings_capture.xml", capture_ru)

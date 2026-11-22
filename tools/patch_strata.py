@@ -348,7 +348,7 @@ print("Added fresh sequential SfM matching fallback and fresh exhaustive compari
 def write_asset(relative_path, body):
     target = ROOT / relative_path
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(body.strip() + "\\n")
+    target.write_text(body.strip() + "\n")
 
 write_asset("app/src/main/res/values/colors_brand.xml", """<resources>
     <color name="brand_night">#07111F</color>
@@ -388,6 +388,6 @@ manifest = ROOT / "app/src/main/AndroidManifest.xml"
 manifest_text = manifest.read_text()
 manifest_text = manifest_text.replace(
     'android:icon="@mipmap/ic_launcher"',
-    'android:icon="@mipmap/ic_launcher"\\n        android:roundIcon="@mipmap/ic_launcher"'
+    'android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher"'
 )
 manifest.write_text(manifest_text)

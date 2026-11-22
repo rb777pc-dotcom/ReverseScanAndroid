@@ -341,3 +341,53 @@ replace_region(
 )
 
 print("Added fresh sequential SfM matching fallback and fresh exhaustive comparison.")
+
+
+# ReverseScan 3D visual identity: dark graphite field, electric-blue/cyan RB
+# monogram, adaptive launcher icon and Android 12+ branded launch screen.
+def write_asset(relative_path, body):
+    target = ROOT / relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(body.strip() + "\\n")
+
+write_asset("app/src/main/res/values/colors_brand.xml", """<resources>
+    <color name="brand_night">#07111F</color>
+    <color name="brand_blue">#176BFF</color>
+    <color name="brand_cyan">#35E7FF</color>
+</resources>""")
+
+write_asset("app/src/main/res/drawable/ic_brand_mark.xml", """<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#00000000" android:strokeColor="#176BFF"
+        android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M54,9 L94,31 L94,77 L54,99 L14,77 L14,31 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#35E7FF"
+        android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M14,31 L54,53 L94,31 M54,53 L54,99" />
+    <path android:fillColor="#00000000" android:strokeColor="#F3FBFF"
+        android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M38,72 L38,37 L54,37 C70,37 70,55 54,55 L38,55 M55,55 C75,55 75,75 56,75 L38,75" />
+</vector>""")
+
+write_asset("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", """<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/brand_night" />
+    <foreground android:drawable="@drawable/ic_brand_mark" />
+    <monochrome android:drawable="@drawable/ic_brand_mark" />
+</adaptive-icon>""")
+
+write_asset("app/src/main/res/values-v31/brand_splash.xml", """<resources>
+    <style name="Theme.Strata" parent="Theme.Strata.Light">
+        <item name="android:windowSplashScreenBackground">@color/brand_night</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_brand_mark</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/brand_night</item>
+    </style>
+</resources>""")
+
+manifest = ROOT / "app/src/main/AndroidManifest.xml"
+manifest_text = manifest.read_text()
+manifest_text = manifest_text.replace(
+    'android:icon="@mipmap/ic_launcher"',
+    'android:icon="@mipmap/ic_launcher"\\n        android:roundIcon="@mipmap/ic_launcher"'
+)
+manifest.write_text(manifest_text)

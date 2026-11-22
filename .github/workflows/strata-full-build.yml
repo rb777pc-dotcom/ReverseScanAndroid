@@ -1,4 +1,4 @@
-name: Build Strata 3D scanner (full native) # revision 2
+name: Build Strata 3D scanner (full native) # revision 3
 
 on:
   push:

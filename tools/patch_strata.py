@@ -177,7 +177,8 @@ def translate(path, mapping):
         s, n = re.subn(pattern, lambda m: m.group(1) + value.replace("&", "&amp;").replace("'", "\\'") + m.group(2), s, count=1, flags=re.S)
         if n == 0:
             # New guidance labels are appended when the upstream resource does not define them yet.
-            line = f'    <string name="{key}">{value.replace("&", "&amp;").replace("'", "\\'")}</string>\n'
+            escaped = value.replace("&", "&amp;").replace("'", "\\'")
+            line = '    <string name="' + key + '">' + escaped + '</string>\n'
             s = s.replace("</resources>", line + "</resources>")
         elif n != 1:
             raise SystemExit(f"String {key} appears more than once in {path}")

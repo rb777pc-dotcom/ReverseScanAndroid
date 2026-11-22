@@ -66,9 +66,16 @@ jobs:
               s = s.replace('SDK="${ANDROID_HOME:-$LOCALAPPDATA/Android/Sdk}"', 'SDK="${ANDROID_HOME:?ANDROID_HOME is not set}"')
               s = s.replace('"-DCMAKE_MAKE_PROGRAM=$CM/ninja.exe"', '"-DCMAKE_MAKE_PROGRAM=ninja"')
               s = s.replace('"$CM/cmake"', 'cmake')
-              p.write_text(s)
+          # JPEG XL is optional in OpenMVS; make pkg-config lookup optional for Android.
+          p = Path("tools/recon/openmvs/build_openmvs.sh")
+          s = p.read_text()
+          marker = 'clone https://github.com/cdcseacave/openMVS.git openmvs v2.4.0\\n'
+          injected = marker + 'python3 -c \'from pathlib import Path; p=Path("tools/recon/work/src/openmvs/libs/IO/CMakeLists.txt"); s=p.read_text(); old="pkg_check_modules(${PREFIX} REQUIRED IMPORTED_TARGET ${MODULE_NAME})"; new="pkg_check_modules(${PREFIX} QUIET IMPORTED_TARGET ${MODULE_NAME})"; assert old in s, "OpenMVS JPEGXL dependency line not found"; p.write_text(s.replace(old,new,1))\'\n'
+          if marker not in s:
+              raise SystemExit("OpenMVS clone marker not found; refusing unsafe patch")
+          p.write_text(s.replace(marker, injected, 1))
           PY
-          grep -nE 'SDK=|CMAKE_MAKE_PROGRAM|cmake --build' tools/recon/build.sh tools/recon/openmvs/build_openmvs.sh
+          grep -nE 'SDK=|CMAKE_MAKE_PROGRAM|pkg_check_modules' tools/recon/build.sh tools/recon/openmvs/build_openmvs.sh
 
       - name: Build MVE and texturing tools (Android arm64)
         working-directory: strata

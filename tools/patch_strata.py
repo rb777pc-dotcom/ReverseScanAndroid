@@ -303,7 +303,7 @@ print("Applied Russian capture/reconstruction UI, larger coverage dial, and dete
 # from freshly computed matches if the sequential fallback places fewer views.
 replace_once(
     "app/src/main/java/app/strata3d/capture/recon/ReconPlan.kt",
-    '        fun sfm(scene: String, setting: SfmSetting) = listOf("--max-pixels=\${setting.maxPixels}", scene)',
+    '        fun sfm(scene: String, setting: SfmSetting) = listOf("--max-pixels=${setting.maxPixels}", scene)',
     '''        fun sfm(scene: String, setting: SfmSetting) = listOf("--max-pixels=\${setting.maxPixels}", scene)
         fun sfmSequential(scene: String, setting: SfmSetting, previousFrames: Int = 8) =
             listOf("--max-pixels=\${setting.maxPixels}", "--video-matching=$previousFrames", scene)'''

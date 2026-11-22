@@ -376,7 +376,10 @@ write_asset("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", """<adaptive-i
     <monochrome android:drawable="@drawable/ic_brand_mark" />
 </adaptive-icon>""")
 
-write_asset("app/src/main/res/values-v31/brand_splash.xml", """<resources>
+# Upstream already defines Theme.Strata in values-v31/themes.xml. Replace that
+# resource in-place so the branded splash attributes extend the existing style
+# rather than creating a duplicate resource with the same name.
+write_asset("app/src/main/res/values-v31/themes.xml", """<resources>
     <style name="Theme.Strata" parent="Theme.Strata.Light">
         <item name="android:windowSplashScreenBackground">@color/brand_night</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_brand_mark</item>

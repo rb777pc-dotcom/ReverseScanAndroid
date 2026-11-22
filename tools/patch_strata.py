@@ -32,9 +32,18 @@ replace_once(
 # Make the two-ring coverage indicator readable and explain what the app is doing.
 replace_once(
     "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
-    """            Row(Modifier.fillMaxWidth().padding(end = 12.dp)) {
-                Spacer(Modifier.weight(1f))
-                CoverageDome(listOf(state.lowerRing, state.upperRing), null, Modifier.size(52.dp))
+    """            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Карта ракурсов", color = OnScrim, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Бирюзовый сектор — ракурс уже снят", color = Teal, fontSize = 11.sp)
+                    Text("Серый сектор — ракурс ещё нужен", color = OnScrim, fontSize = 11.sp)
+                    Text("Нижнюю сторону под столом можно доснять отдельно, перевернув предмет", color = OnScrim, fontSize = 10.sp)
+                }
+                CoverageDome(listOf(state.lowerRing, state.upperRing), null, Modifier.size(104.dp))
             }""",
     """            Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

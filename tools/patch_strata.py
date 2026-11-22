@@ -227,4 +227,94 @@ translate("app/src/main/res/values/strings_info.xml", {
     "license_notices": "Уведомления о сторонних компонентах"
 })
 
+
+# Keep the display awake only while the live camera capture screen is active.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureActivity.kt",
+    "            var shutterSettings by remember { mutableStateOf(false) }",
+    """            var shutterSettings by remember { mutableStateOf(false) }
+
+            DisposableEffect(screen) {
+                if (screen == Screen.CAPTURE) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                onDispose { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+            }"""
+)
+
+# Expose CameraX torch state and control in the live preview. The torch belongs to
+# CameraControl, not ImageCapture flash mode, so it remains on continuously between photos.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        val smartAvailable: Boolean = true,",
+    "        val smartAvailable: Boolean = true,\n        val torchAvailable: Boolean = false,\n        val torchOn: Boolean = false,"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        camera = cam\n        imageCapture = capture",
+    """        camera = cam
+        val hasTorch = cam.cameraInfo.hasFlashUnit()
+        _state.update { it.copy(torchAvailable = hasTorch, torchOn = false) }
+        imageCapture = capture"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "    /** Switches between the smart shutter and the manual button for this capture. */",
+    """    /** Toggles the continuous LED torch while the camera preview is active. */
+    fun toggleTorch() {
+        val cam = camera ?: return
+        if (!cam.cameraInfo.hasFlashUnit()) {
+            _state.update { it.copy(torchAvailable = false, torchOn = false) }
+            return
+        }
+        val enabled = !_state.value.torchOn
+        cam.cameraControl.enableTorch(enabled).addListener({
+            _state.update { it.copy(torchOn = enabled) }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    /** Switches between the smart shutter and the manual button for this capture. */"""
+)
+# ContextCompat is already imported by the upstream camera class in the pinned source.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        provider?.unbindAll()\n        provider = null; camera = null; imageCapture = null; previewView = null",
+    "        camera?.cameraControl?.enableTorch(false)\n        _state.update { it.copy(torchOn = false) }\n        provider?.unbindAll()\n        provider = null; camera = null; imageCapture = null; previewView = null"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    "                ModeChip(state.mode, enabled = state.smartAvailable) {",
+    """                Text(
+                    if (state.torchOn) "Фонарик ВКЛ" else "Фонарик ВЫКЛ",
+                    color = if (state.torchOn) Teal else OnScrim,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .background(Scrim, RoundedCornerShape(50))
+                        .clickable(enabled = state.torchAvailable) { engine.toggleTorch() }
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                ModeChip(state.mode, enabled = state.smartAvailable) {"""
+)
+# Make the capture coverage graphic large enough to inspect instead of leaving it as a tiny icon.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    """            Row(Modifier.fillMaxWidth().padding(end = 12.dp)) {
+                Spacer(Modifier.weight(1f))
+                CoverageDome(listOf(state.lowerRing, state.upperRing), null, Modifier.size(52.dp))
+            }""",
+    """            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Карта ракурсов", color = OnScrim, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Бирюзовый сектор — ракурс уже снят", color = Teal, fontSize = 11.sp)
+                    Text("Серый сектор — ракурс ещё нужен", color = OnScrim, fontSize = 11.sp)
+                    Text("Нижнюю сторону под столом можно доснять отдельно, перевернув предмет", color = OnScrim, fontSize = 10.sp)
+                }
+                CoverageDome(listOf(state.lowerRing, state.upperRing), null, Modifier.size(104.dp))
+            }"""
+)
+
 print("Applied Russian capture/reconstruction UI, larger coverage dial, and deterministic SfM first pass.")

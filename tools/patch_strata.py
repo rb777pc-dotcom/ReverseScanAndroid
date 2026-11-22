@@ -304,9 +304,9 @@ print("Applied Russian capture/reconstruction UI, larger coverage dial, and dete
 replace_once(
     "app/src/main/java/app/strata3d/capture/recon/ReconPlan.kt",
     '        fun sfm(scene: String, setting: SfmSetting) = listOf("--max-pixels=${setting.maxPixels}", scene)',
-    '''        fun sfm(scene: String, setting: SfmSetting) = listOf("--max-pixels=\${setting.maxPixels}", scene)
+    '''        fun sfm(scene: String, setting: SfmSetting) = listOf("--max-pixels=${setting.maxPixels}", scene)
         fun sfmSequential(scene: String, setting: SfmSetting, previousFrames: Int = 8) =
-            listOf("--max-pixels=\${setting.maxPixels}", "--video-matching=$previousFrames", scene)'''
+            listOf("--max-pixels=${setting.maxPixels}", "--video-matching=$previousFrames", scene)'''
 )
 def replace_region(path, start_marker, end_marker, replacement):
     p = ROOT / path

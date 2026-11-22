@@ -352,15 +352,10 @@ replace_once(
             )
             placed = registeredViews()
             if (placed < firstPlaced) {
-                // Sequential matching can miss large viewpoint jumps. Rebuild a fresh exhaustive
-                // graph as the alternative; never fall back to the stale prebundle.
-                Log.w(TAG, "Sequential matching placed $placed, below exhaustive $firstPlaced; rebuilding exhaustive matches")
-                attempt++
-                File(scene, "prebundle.sfm").delete()
-                File(scene, "synth_0.out").delete()
-                exec("sfmrecon", ReconPlan.Args.sfm(scene.path, settings.sfm), Stage.CAMERAS, threads = 1)
-                val exhaustivePlaced = registeredViews()
-                if (exhaustivePlaced > placed) placed = exhaustivePlaced
+                // Do not continue with a worse camera solution. The original exhaustive
+                // graph is not safe to reuse after the scene has been re-solved.
+                throw Stop(Error.TOO_FEW_PHOTOS_PLACED,
+                    "sequential matching placed $placed photos, below the initial $firstPlaced; capture needs more overlap")
             }
         }
         Log.i(TAG, "SfM placed $placed of $views photos after $attempt distinct matching attempt(s) (\${settings.reason})")'''

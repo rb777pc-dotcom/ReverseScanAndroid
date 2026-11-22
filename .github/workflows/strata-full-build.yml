@@ -55,6 +55,9 @@ jobs:
           cmake --version
           ninja --version
 
+      - name: Apply scanner reliability and Russian UI fixes
+        run: python3 tools/patch_strata.py
+
       - name: Adapt upstream native scripts for Linux runner
         working-directory: strata
         run: |

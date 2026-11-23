@@ -1100,6 +1100,8 @@ def expose_model_import_in_capture_library():
         )
         source = source.replace(
             "import androidx.compose.material.icons.outlined.MoreVert\n",
+            "import androidx.compose.material3.OutlinedTextField\n",
+            "import androidx.compose.material3.OutlinedTextField\nimport androidx.compose.material3.OutlinedButton\n",
             "import androidx.compose.material.icons.outlined.MoreVert\nimport androidx.compose.material.icons.outlined.FolderOpen\n",
             1,
         )

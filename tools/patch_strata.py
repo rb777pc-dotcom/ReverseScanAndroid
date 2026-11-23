@@ -910,13 +910,25 @@ def add_archive_resume():
     s = p.read_text()
     anchor = "    val exporter = rememberCaptureExporter(viewModel)\n"
     if "val importer = rememberLauncherForActivityResult" not in s:
+        if anchor not in s: raise SystemExit("import launcher anchor missing")
         s = s.replace(anchor, anchor + '''    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.importCapture(it) }
     }
 ''', 1)
+    # Visible toolbar action: import is no longer buried in the overflow menu.
+    toolbar_anchor = '''                actions = {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.capture_more)) }'''
+    if 'Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.capture_import))' not in s:
+        if toolbar_anchor not in s: raise SystemExit("import toolbar anchor missing")
+        s = s.replace(toolbar_anchor, '''                actions = {
+                    IconButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) }) {
+                        Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.capture_import))
+                    }
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.capture_more)) }''', 1)
     anchor = '''                        DropdownMenuItem(
                             text = { Text(stringResource(R.string.capture_device_report)) },'''
-    if "R.string.capture_import)" not in s:
+    if "R.string.capture_import))" not in s:
+        if anchor not in s: raise SystemExit("import menu anchor missing")
         s = s.replace(anchor, '''                        DropdownMenuItem(
                             text = { Text(stringResource(R.string.capture_import)) },
                             leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
@@ -962,6 +974,8 @@ def add_archive_resume():
     s = p.read_text()
     s = s.replace("fun CaptureScreen(store: CaptureStore, onFinished: (String?) -> Unit) {",
                   "fun CaptureScreen(store: CaptureStore, onFinished: (String?) -> Unit, resumeCaptureId: String? = null) {", 1)
+    s = s.replace("val engine = remember {",
+                  "val engine = remember(resumeCaptureId) {", 1)
     s = s.replace('CameraXCapture(context.applicationContext, store, version ?: "")',
                   'CameraXCapture(context.applicationContext, store, version ?: "", resumeCaptureId)', 1)
     p.write_text(s)

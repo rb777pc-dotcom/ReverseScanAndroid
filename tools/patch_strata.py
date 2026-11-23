@@ -552,8 +552,7 @@ replace_region(
 print("Added fresh sequential SfM matching fallback and fresh exhaustive comparison.")
 
 
-# ReverseScan 3D visual identity: dark graphite field, electric-blue/cyan RB
-# monogram, adaptive launcher icon and Android 12+ branded launch screen.
+# ReverseScan 3D visual identity: dark graphite field and a neutral 3D wireframe mark.
 def write_asset(relative_path, body):
     target = ROOT / relative_path
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -574,9 +573,6 @@ write_asset("app/src/main/res/drawable/ic_brand_mark.xml", """<vector xmlns:andr
     <path android:fillColor="#00000000" android:strokeColor="#35E7FF"
         android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round"
         android:pathData="M14,31 L54,53 L94,31 M54,53 L54,99" />
-    <path android:fillColor="#00000000" android:strokeColor="#F3FBFF"
-        android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M38,72 L38,37 L54,37 C70,37 70,55 54,55 L38,55 M55,55 C75,55 75,75 56,75 L38,75" />
 </vector>""")
 
 write_asset("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", """<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
@@ -609,7 +605,7 @@ manifest.write_text(manifest_text)
 # 3D wireframe mark used by ReverseScan. No letter-shaped monogram.
 replace_once(
     "app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
-    `/** The Strata:3D logo; its dark strokes use the theme's text colour so it reads on light and dark bars. */
+    """/** The Strata:3D logo; its dark strokes use the theme's text colour so it reads on light and dark bars. */
 @Composable
 fun StrataLogo(modifier: Modifier = Modifier) {
     val ink = MaterialTheme.colorScheme.onSurface
@@ -627,8 +623,8 @@ fun StrataLogo(modifier: Modifier = Modifier) {
             modifier = Modifier.matchParentSize(),
         )
     }
-}`,
-    `/** ReverseScan 3D wireframe mark; deliberately contains no Strata lettering. */
+}""",
+    """/** ReverseScan 3D wireframe mark; deliberately contains no Strata lettering. */
 @Composable
 fun StrataLogo(modifier: Modifier = Modifier) {
     Image(
@@ -636,19 +632,19 @@ fun StrataLogo(modifier: Modifier = Modifier) {
         contentDescription = stringResource(R.string.app_name),
         modifier = modifier,
     )
-}`
+}"""
 )
 
 # Make model import a permanent, visible top-bar action instead of hiding it in Settings.
 replace_once(
     "app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
-    `                            ThemeToggleButton(dark = dark, onToggle = onToggleTheme)`,
-    `                            TextButton(onClick = launchPicker) {
+    """                            ThemeToggleButton(dark = dark, onToggle = onToggleTheme)""",
+    """                            TextButton(onClick = launchPicker) {
                                 Icon(Icons.Outlined.FolderOpen, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
                                 Text(stringResource(R.string.open_file))
                             }
-                            ThemeToggleButton(dark = dark, onToggle = onToggleTheme)`
+                            ThemeToggleButton(dark = dark, onToggle = onToggleTheme)"""
 )
 
 # Live object detection and tracking in the camera preview.

@@ -1094,21 +1094,21 @@ def expose_model_import_in_capture_library():
     source = path.read_text()
     if "val modelImporter = rememberLauncherForActivityResult" not in source:
         source = source.replace(
-            "import android.content.Context\\n",
-            "import android.content.Context\\nimport android.content.Intent\\n",
+            "import android.content.Context\n",
+            "import android.content.Context\nimport android.content.Intent\n",
             1,
         )
         source = source.replace(
-            "import androidx.compose.material.icons.outlined.MoreVert\\n",
-            "import androidx.compose.material.icons.outlined.MoreVert\\nimport androidx.compose.material.icons.outlined.FolderOpen\\n",
+            "import androidx.compose.material.icons.outlined.MoreVert\n",
+            "import androidx.compose.material.icons.outlined.MoreVert\nimport androidx.compose.material.icons.outlined.FolderOpen\n",
             1,
         )
         source = source.replace(
-            "import app.strata3d.R\\n",
-            "import app.strata3d.R\\nimport app.strata3d.MainActivity\\n",
+            "import app.strata3d.R\n",
+            "import app.strata3d.R\nimport app.strata3d.MainActivity\n",
             1,
         )
-        anchor = "    val exporter = rememberCaptureExporter(viewModel)\\n"
+        anchor = "    val exporter = rememberCaptureExporter(viewModel)\n"
         if anchor not in source:
             raise SystemExit("model import launcher anchor missing in CaptureLibraryScreen")
         source = source.replace(anchor, anchor + """    val modelImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -1121,7 +1121,7 @@ def expose_model_import_in_capture_library():
         }
     }
 """, 1)
-        anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\\n"
+        anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\n"
         if anchor not in source:
             raise SystemExit("model import button anchor missing in CaptureLibraryScreen")
         source = source.replace(anchor, anchor + """            OutlinedButton(

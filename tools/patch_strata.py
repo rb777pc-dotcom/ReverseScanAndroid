@@ -877,7 +877,12 @@ def add_archive_resume():
                     val records = ff.readLines(Charsets.UTF_8).filter { it.isNotBlank() }
                         .map { app.strata3d.capture.format.CaptureJson.decodeFrame(it) }
                     require(records.isNotEmpty())
-                    records.forEach { require(File(temp, it.image).isFile) { "Missing image" } }
+                    records.forEach { frame ->
+                        val imagePath = frame.image.replace('\\\\', '/')
+                        require(!imagePath.startsWith("/") && imagePath.split('/').none { it == ".." }) { "Unsafe image path" }
+                        val imageFile = File(temp, imagePath).canonicalFile
+                        require(imageFile.path.startsWith(temp.canonicalPath + File.separator) && imageFile.isFile) { "Missing or unsafe image" }
+                    }
                     val created = store.create(decoded.copy(id = "", frameCount = records.size,
                         state = app.strata3d.capture.format.CaptureState.COMPLETE, updatedAt = System.currentTimeMillis()))
                     try {
@@ -949,7 +954,7 @@ def add_archive_resume():
                 capture = existing
                 manifest = existing.manifest
                 val frames = store.readFrames(existing.dir)
-                photoCount = frames.maxOfOrNull { it.index } ?: 0
+                photoCount = frames.size
                 frames.forEach { f -> f.orientation?.let { rings.add(DeviceOrientation.of(it.x, it.y, it.z, it.w)) } }
                 _state.update { it.copy(phase = Phase.AIMING, photoCount = photoCount,
                     lowerRing = rings.cells(CoverageRings.Ring.LOWER),

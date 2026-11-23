@@ -921,8 +921,8 @@ def add_archive_resume():
     if 'Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.capture_import))' not in s:
         if toolbar_anchor not in s: raise SystemExit("import toolbar anchor missing")
         s = s.replace(toolbar_anchor, '''                actions = {
-                    IconButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) }) {
-                        Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.capture_import))
+                    TextButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) }) {
+                        Text("Импорт ZIP")
                     }
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.capture_more)) }''', 1)
     anchor = '''                        DropdownMenuItem(

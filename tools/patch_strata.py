@@ -86,7 +86,7 @@ capture_ru = {
 "capture_shutter_smart_desc":"Фото делается автоматически, когда вы меняете ракурс и на мгновение останавливаете телефон.",
 "capture_shutter_manual_desc":"Каждое фото делается нажатием кнопки.",
 "capture_guide_title":"Обойдите предмет по кругу",
-"capture_guide_body":"Держите предмет в центре кадра. Автосъёмка делает фото сама, когда ракурс изменился и телефон неподвижен. Для верхних ракурсов слегка наклоните камеру вниз.",
+"capture_guide_body":"Держите предмет в центре кадра. Автосъёмка делает фото сама, когда ракурс изменился и телефон неподвижен. Для верхних ракурсов слегка наклоните камеру вниз. Индикатор показывает охват ракурсов по наклону телефона, а не измеряет отснятые участки поверхности.",
 "capture_guide_done":"Бирюзовый — снято",
 "capture_guide_missing":"Серый — ещё не снято",
 }
@@ -598,7 +598,8 @@ replace_once(
             .enableMultipleObjects()
             .build()
     )
-    @Volatile private var missedObjectFrames = 0"""
+    @Volatile private var missedObjectFrames = 0
+    @Volatile private var selectedObjectTrackingId: Int? = null"""
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
@@ -622,18 +623,27 @@ replace_once(
                         val selectedTap = synchronized(lock) { manifest?.objectTap }
                         val rotatedWidth = if (rotation % 180 == 0) proxy.width else proxy.height
                         val rotatedHeight = if (rotation % 180 == 0) proxy.height else proxy.width
-                        val target = if (selectedTap != null) {
-                            objects.minByOrNull { obj ->
+                        val lockedId = selectedObjectTrackingId
+                        val target = when {
+                            selectedTap == null -> objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+                            lockedId != null -> objects.firstOrNull { it.trackingId == lockedId }
+                            else -> objects.mapNotNull { obj ->
                                 val b = obj.boundingBox
-                                val dx = b.centerX().toFloat() / rotatedWidth - selectedTap.u.toFloat()
-                                val dy = b.centerY().toFloat() / rotatedHeight - selectedTap.v.toFloat()
-                                dx * dx + dy * dy
-                            }
-                        } else {
-                            objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+                                val left = b.left.toFloat() / rotatedWidth
+                                val top = b.top.toFloat() / rotatedHeight
+                                val right = b.right.toFloat() / rotatedWidth
+                                val bottom = b.bottom.toFloat() / rotatedHeight
+                                val u = selectedTap.u.toFloat()
+                                val v = selectedTap.v.toFloat()
+                                val dx = maxOf(left - u, 0f, u - right)
+                                val dy = maxOf(top - v, 0f, v - bottom)
+                                obj to (dx * dx + dy * dy)
+                            }.filter { it.second <= 0.16f * 0.16f }
+                                .minByOrNull { it.second }?.first
                         }
                         if (target != null) {
                             missedObjectFrames = 0
+                            target.trackingId?.let { selectedObjectTrackingId = it }
                             val box = target.boundingBox
                             _state.update { it.copy(
                                 objectDetected = true,
@@ -648,6 +658,7 @@ replace_once(
                         } else {
                             missedObjectFrames++
                             if (missedObjectFrames >= 3) {
+                                selectedObjectTrackingId = null
                                 _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
                             }
                         }
@@ -655,7 +666,8 @@ replace_once(
                     .addOnFailureListener {
                         missedObjectFrames++
                         if (missedObjectFrames >= 3) {
-                            _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                            selectedObjectTrackingId = null
+                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
                         }
                     }
                     .addOnCompleteListener { proxy.close() }
@@ -726,6 +738,14 @@ replace_once(
         }
         // Taps over the camera mark the object (before the first photo)."""
 )
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        val tap = ObjectTap(u, v, SystemClock.elapsedRealtimeNanos(), o?.toSensorOrientation())",
+    """        val tap = ObjectTap(u, v, SystemClock.elapsedRealtimeNanos(), o?.toSensorOrientation())
+        selectedObjectTrackingId = null
+        missedObjectFrames = 0"""
+)
+
 print("Added live ML Kit object detection/tracking, bounding-box overlay, and lost-target status.")
 
 

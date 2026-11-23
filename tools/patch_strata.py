@@ -978,6 +978,8 @@ def add_archive_resume():
                   "val engine = remember(resumeCaptureId) {", 1)
     s = s.replace('CameraXCapture(context.applicationContext, store, version ?: "")',
                   'CameraXCapture(context.applicationContext, store, version ?: "", resumeCaptureId)', 1)
+    s = s.replace("DisposableEffect(Unit) { onDispose { engine.shutdown() } }",
+                  "DisposableEffect(engine) { onDispose { engine.shutdown() } }", 1)
     p.write_text(s)
 
     summary_path = "app/src/main/java/app/strata3d/capture/ui/CaptureSummaryScreen.kt"

@@ -552,3 +552,162 @@ manifest_text = manifest_text.replace(
     'android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher"'
 )
 manifest.write_text(manifest_text)
+
+
+# Live object detection and tracking in the camera preview.
+# ML Kit's bundled stream detector supplies a real object bounding box and tracking ID.
+# This is deliberately described as object tracking, not pixel-level segmentation.
+replace_once(
+    "app/build.gradle.kts",
+    "    implementation(libs.junit)",
+    "    implementation(\"com.google.mlkit:object-detection:17.0.2\")\n\n    implementation(libs.junit)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "import android.annotation.SuppressLint",
+    "import android.annotation.SuppressLint\nimport android.graphics.RectF"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "import androidx.camera.core.ImageCaptureException",
+    "import androidx.camera.core.ImageCaptureException\nimport androidx.camera.core.ImageAnalysis"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "import androidx.lifecycle.LifecycleOwner",
+    """import androidx.lifecycle.LifecycleOwner
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        val smartAvailable: Boolean = true,",
+    "        val smartAvailable: Boolean = true,\n        val objectDetected: Boolean? = null,\n        val objectBox: RectF? = null,\n        val objectTrackingId: Int? = null,"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "    private var previewView: PreviewView? = null",
+    """    private var previewView: PreviewView? = null
+    private var imageAnalysis: ImageAnalysis? = null
+    private val analysisExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "reversescan-object-analysis") }
+    private val objectDetector = ObjectDetection.getClient(
+        ObjectDetectorOptions.Builder()
+            .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+            .enableMultipleObjects(false)
+            .enableClassification(false)
+            .build()
+    )
+    @Volatile private var missedObjectFrames = 0"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    """        p.unbindAll()
+        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+        preview.surfaceProvider = view.surfaceProvider
+        camera = cam
+        imageCapture = capture""",
+    """        val analysis = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+        analysis.setAnalyzer(analysisExecutor) { proxy ->
+            val media = proxy.image
+            if (media == null) {
+                proxy.close()
+            } else {
+                val rotation = proxy.imageInfo.rotationDegrees
+                objectDetector.process(InputImage.fromMediaImage(media, rotation))
+                    .addOnSuccessListener { objects ->
+                        val target = objects.firstOrNull()
+                        if (target != null) {
+                            missedObjectFrames = 0
+                            val box = target.boundingBox
+                            val rotatedWidth = if (rotation % 180 == 0) proxy.width else proxy.height
+                            val rotatedHeight = if (rotation % 180 == 0) proxy.height else proxy.width
+                            _state.update { it.copy(
+                                objectDetected = true,
+                                objectBox = RectF(
+                                    (box.left.toFloat() / rotatedWidth).coerceIn(0f, 1f),
+                                    (box.top.toFloat() / rotatedHeight).coerceIn(0f, 1f),
+                                    (box.right.toFloat() / rotatedWidth).coerceIn(0f, 1f),
+                                    (box.bottom.toFloat() / rotatedHeight).coerceIn(0f, 1f),
+                                ),
+                                objectTrackingId = target.trackingId,
+                            ) }
+                        } else {
+                            missedObjectFrames++
+                            if (missedObjectFrames >= 3) {
+                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                            }
+                        }
+                    }
+                    .addOnFailureListener {
+                        missedObjectFrames++
+                        if (missedObjectFrames >= 3) {
+                            _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                        }
+                    }
+                    .addOnCompleteListener { proxy.close() }
+            }
+        }
+        p.unbindAll()
+        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture, analysis)
+        preview.surfaceProvider = view.surfaceProvider
+        camera = cam
+        imageCapture = capture
+        imageAnalysis = analysis"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        provider?.unbindAll()\n        provider = null; camera = null; imageCapture = null; previewView = null",
+    """        imageAnalysis?.clearAnalyzer()
+        imageAnalysis = null
+        provider?.unbindAll()
+        provider = null; camera = null; imageCapture = null; previewView = null
+        objectDetector.close()
+        analysisExecutor.shutdown()"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    "        // Taps over the camera mark the object (before the first photo).",
+    """        // Live ML Kit object tracking: green = detected, red = lost.
+        val detectedBox = state.objectBox
+        Canvas(Modifier.fillMaxSize()) {
+            val portrait = size.height >= size.width
+            val frameAspect = if (portrait) 3f / 4f else 4f / 3f
+            val contentWidth = minOf(size.width, size.height * frameAspect)
+            val contentHeight = minOf(size.height, size.width / frameAspect)
+            val offsetX = (size.width - contentWidth) / 2f
+            val offsetY = (size.height - contentHeight) / 2f
+            if (state.objectDetected == true && detectedBox != null) {
+                val l = offsetX + detectedBox.left * contentWidth
+                val t = offsetY + detectedBox.top * contentHeight
+                val r = offsetX + detectedBox.right * contentWidth
+                val b = offsetY + detectedBox.bottom * contentHeight
+                drawRect(Color(0xFF36E58A), topLeft = Offset(l, t), size = Size(r - l, b - t), style = Stroke(width = 3.dp.toPx()))
+                drawCircle(Color(0xFF36E58A), radius = 5.dp.toPx(), center = Offset((l + r) / 2f, t))
+            }
+        }
+        Box(
+            Modifier.fillMaxWidth().padding(top = 54.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            val trackingLabel = when (state.objectDetected) {
+                true -> "ОБЪЕКТ В КАДРЕ · ОТСЛЕЖИВАЕТСЯ"
+                false -> "ОБЪЕКТ ПОТЕРЯН · НАВЕДИТЕ КАМЕРУ"
+                null -> "НАВЕДИТЕ КАМЕРУ НА ПРЕДМЕТ"
+            }
+            Text(
+                trackingLabel,
+                color = if (state.objectDetected == true) Color(0xFF36E58A) else Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.background(
+                    if (state.objectDetected == false) Color(0xCCB3261E) else Scrim,
+                    RoundedCornerShape(50),
+                ).padding(horizontal = 12.dp, vertical = 7.dp),
+            )
+        }
+        // Taps over the camera mark the object (before the first photo)."""
+)
+print("Added live ML Kit object detection/tracking, bounding-box overlay, and lost-target status.")

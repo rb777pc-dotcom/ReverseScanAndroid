@@ -1000,4 +1000,17 @@ def add_archive_resume():
     })
 
 add_archive_resume()
+# Add strings introduced by the archive/resume patch after the earlier resource translation.
+translate("app/src/main/res/values/strings_capture.xml", {
+    "capture_import": "Импорт ZIP съёмки",
+    "capture_imported": "Съёмка импортирована",
+    "capture_import_failed": "Не удалось импортировать архив. Выберите ZIP-экспорт ReverseScan 3D.",
+    "capture_continue": "Доснять объект",
+})
+# CaptureLibraryViewModel is in the UI package and needs the generated R class explicitly.
+vm_file = ROOT / "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryViewModel.kt"
+vm_text = vm_file.read_text()
+if "import app.strata3d.R" not in vm_text:
+    vm_text = vm_text.replace("import app.strata3d.capture.format.CaptureExport", "import app.strata3d.R\\nimport app.strata3d.capture.format.CaptureExport", 1)
+vm_file.write_text(vm_text)
 print("Added capture ZIP import and in-place continuation of existing scans.")

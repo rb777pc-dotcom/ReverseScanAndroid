@@ -393,7 +393,10 @@ replace_once(
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "        camera = cam\n        imageCapture = capture",
-    """        camera = cam
+    """        p.unbindAll()
+        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+        preview.surfaceProvider = view.surfaceProvider
+        camera = cam
         val hasTorch = cam.cameraInfo.hasFlashUnit()
         _state.update { it.copy(torchAvailable = hasTorch, torchOn = false) }
         imageCapture = capture"""
@@ -602,8 +605,7 @@ replace_once(
     private val objectDetector = ObjectDetection.getClient(
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
-            .enableMultipleObjects(true)
-            .enableClassification(false)
+            .enableMultipleObjects()
             .build()
     )
     @Volatile private var missedObjectFrames = 0"""
@@ -737,6 +739,12 @@ print("Added live ML Kit object detection/tracking, bounding-box overlay, and lo
 
 
 # Target selection is already implemented in the ImageAnalysis callback above.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "    enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS }",
+    "    enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS, TARGET_LOST }"
+)
+
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "    private fun takePhoto(orientation: DeviceOrientation?, manual: Boolean) {\n        val ic = imageCapture ?: run { synchronized(lock) { shutter.onPhotoFinished(false) }; return }",

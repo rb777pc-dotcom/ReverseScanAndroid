@@ -606,7 +606,8 @@ replace_once(
         val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
         preview.surfaceProvider = view.surfaceProvider
         camera = cam
-        imageCapture = capture""",
+        imageCapture = capture
+        cameraInfo = readCameraInfo(cam, capture)""",
     """        val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()

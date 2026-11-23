@@ -491,8 +491,8 @@ replace_region(
             val sequentialArgs = ReconPlan.Args.sfmSequential(scene.path, settings.sfm, 8)
             exec("sfmrecon", sequentialArgs, Stage.CAMERAS, threads = 1)
             placed = registeredViews()
-            if (placed < firstPlaced) {
-                Log.w(TAG, "sequential fallback placed $placed, below the initial $firstPlaced; testing alternate seeds")
+            if (placed < ReconPlan.goodPlacement(views)) {
+                Log.w(TAG, "SfM remains below the placement target ($placed/$views); testing alternate initial pairs")
             }
 
             // A weak automatic seed can leave most views unregistered even when the matching graph

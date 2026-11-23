@@ -1376,3 +1376,12 @@ translate("app/src/main/res/values/strings_info.xml", {
 })
 
 print("Applied save verification, partial SfM recovery, stronger object reacquisition, faster auto shutter, visible capture ZIP import, and Russian app information.")
+
+
+# When resuming an imported/interrupted capture, let the user tap the object again
+# and persist that fresh image-space anchor; the old tap belongs to the old camera view.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "} else if (resumeCaptureId == null) {",
+    "} else {"
+)

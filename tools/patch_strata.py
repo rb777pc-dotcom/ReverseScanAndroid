@@ -711,3 +711,46 @@ replace_once(
         // Taps over the camera mark the object (before the first photo)."""
 )
 print("Added live ML Kit object detection/tracking, bounding-box overlay, and lost-target status.")
+
+
+# Prefer the object nearest the user's tap; do not silently photograph after target loss.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS }",
+    "enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS, TARGET_LOST }"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    ".enableMultipleObjects(false)",
+    ".enableMultipleObjects(true)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "val target = objects.firstOrNull()",
+    """val selectedTap = synchronized(lock) { manifest?.objectTap }
+                        val target = if (selectedTap != null) {
+                            objects.minByOrNull { obj ->
+                                val b = obj.boundingBox
+                                val dx = (b.centerX().toFloat() / (if (rotation % 180 == 0) proxy.width else proxy.height)) - selectedTap.u
+                                val dy = (b.centerY().toFloat() / (if (rotation % 180 == 0) proxy.height else proxy.width)) - selectedTap.v
+                                dx * dx + dy * dy
+                            }
+                        } else objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "    private fun takePhoto(orientation: DeviceOrientation?, manual: Boolean) {\n        val ic = imageCapture ?: run { synchronized(lock) { shutter.onPhotoFinished(false) }; return }",
+    """    private fun takePhoto(orientation: DeviceOrientation?, manual: Boolean) {
+        if (_state.value.objectDetected == false) {
+            synchronized(lock) { shutter.onPhotoFinished(false) }
+            _state.update { it.copy(notice = Notice.TARGET_LOST) }
+            return
+        }
+        val ic = imageCapture ?: run { synchronized(lock) { shutter.onPhotoFinished(false) }; return }"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    "    Notice.NO_SENSORS -> stringResource(R.string.capture_no_sensors)",
+    "    Notice.NO_SENSORS -> stringResource(R.string.capture_no_sensors)\n    Notice.TARGET_LOST -> \"Предмет потерян — фото не сделано. Верните его в кадр.\""
+)
+print("Added tap-nearest target selection and blocked shutter when the target is explicitly lost.")

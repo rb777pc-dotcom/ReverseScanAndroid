@@ -1011,6 +1011,6 @@ translate("app/src/main/res/values/strings_capture.xml", {
 vm_file = ROOT / "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryViewModel.kt"
 vm_text = vm_file.read_text()
 if "import app.strata3d.R" not in vm_text:
-    vm_text = vm_text.replace("import app.strata3d.capture.format.CaptureExport", "import app.strata3d.R\\nimport app.strata3d.capture.format.CaptureExport", 1)
+    vm_text = vm_text.replace("import app.strata3d.capture.format.CaptureExport", "import app.strata3d.R\nimport app.strata3d.capture.format.CaptureExport", 1)
 vm_file.write_text(vm_text)
 print("Added capture ZIP import and in-place continuation of existing scans.")

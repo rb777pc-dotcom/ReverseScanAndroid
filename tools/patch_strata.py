@@ -654,12 +654,13 @@ replace_once(
                                     (box.bottom.toFloat() / rotatedHeight).coerceIn(0f, 1f),
                                 ),
                                 objectTrackingId = target.trackingId,
+                                notice = if (it.notice == Notice.TARGET_LOST) noticeFor(it.mode, armed = it.phase == Phase.CAPTURING) else it.notice,
                             ) }
                         } else {
                             missedObjectFrames++
                             if (missedObjectFrames >= 3) {
                                 selectedObjectTrackingId = null
-                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null, notice = Notice.TARGET_LOST) }
                             }
                         }
                     }
@@ -667,7 +668,7 @@ replace_once(
                         missedObjectFrames++
                         if (missedObjectFrames >= 3) {
                             selectedObjectTrackingId = null
-                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null, notice = Notice.TARGET_LOST) }
                         }
                     }
                     .addOnCompleteListener { proxy.close() }

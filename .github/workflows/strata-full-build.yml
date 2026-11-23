@@ -100,6 +100,14 @@ jobs:
           tools/recon/openmvs/build_openmvs.sh
           df -h
 
+      # Reuse the same debug certificate between CI builds so Android can update the app
+      # without requiring uninstall (and therefore without erasing the app's private captures).
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: reversescan-debug-signing-v1
+
       - name: Run unit tests and build full APK
         working-directory: strata
         env:

@@ -390,17 +390,7 @@ replace_once(
     "        val smartAvailable: Boolean = true,",
     "        val smartAvailable: Boolean = true,\n        val torchAvailable: Boolean = false,\n        val torchOn: Boolean = false,"
 )
-replace_once(
-    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    "        camera = cam\n        imageCapture = capture",
-    """        p.unbindAll()
-        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
-        preview.surfaceProvider = view.surfaceProvider
-        camera = cam
-        val hasTorch = cam.cameraInfo.hasFlashUnit()
-        _state.update { it.copy(torchAvailable = hasTorch, torchOn = false) }
-        imageCapture = capture"""
-)
+# Camera binding is patched together with ImageAnalysis below to avoid duplicate Camera instances.
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "    /** Switches between the smart shutter and the manual button for this capture. */",
@@ -612,9 +602,10 @@ replace_once(
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    """        camera = cam
-        val hasTorch = cam.cameraInfo.hasFlashUnit()
-        _state.update { it.copy(torchAvailable = hasTorch, torchOn = false) }
+    """        p.unbindAll()
+        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+        preview.surfaceProvider = view.surfaceProvider
+        camera = cam
         imageCapture = capture
         cameraInfo = readCameraInfo(cam, capture)""",
     """        val analysis = ImageAnalysis.Builder()

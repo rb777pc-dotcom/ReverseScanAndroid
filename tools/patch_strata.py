@@ -732,8 +732,8 @@ replace_once(
                         val target = if (selectedTap != null) {
                             objects.minByOrNull { obj ->
                                 val b = obj.boundingBox
-                                val dx = (b.centerX().toFloat() / (if (rotation % 180 == 0) proxy.width else proxy.height)) - selectedTap.u
-                                val dy = (b.centerY().toFloat() / (if (rotation % 180 == 0) proxy.height else proxy.width)) - selectedTap.v
+                                val dx = (b.centerX().toFloat() / (if (rotation % 180 == 0) proxy.width else proxy.height)) - selectedTap.u.toFloat()
+                                val dy = (b.centerY().toFloat() / (if (rotation % 180 == 0) proxy.height else proxy.width)) - selectedTap.v.toFloat()
                                 dx * dx + dy * dy
                             }
                         } else objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }"""

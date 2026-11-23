@@ -9,7 +9,15 @@ def replace_once(path, old, new):
     p = ROOT / path
     s = p.read_text()
     if old not in s:
-        raise SystemExit(f"Expected source block not found in {path}; refusing partial patch")
+        lines = s.splitlines()
+        candidates = [i for i, line in enumerate(lines) if any(token in line for token in ("camera = cam", "imageCapture = capture", "bindToLifecycle", "unbindAll", "previewView = null"))]
+        context = "\\n".join("\\n".join(lines[max(0, i-3):min(len(lines), i+7)]) for i in candidates[:8])
+        raise SystemExit(
+            f"Expected source block not found in {path}.\\n"
+            f"Missing anchor: {old!r}\\n"
+            f"Nearby source context:\\n{context}\\n"
+            "Refusing partial patch"
+        )
     p.write_text(s.replace(old, new, 1))
 
 # The first MVE SfM run must be deterministic. The upstream code previously started

@@ -602,11 +602,47 @@ replace_once(
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    """        p.unbindAll()
-        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+    """        val analysis = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+        analysis.setAnalyzer(analysisExecutor) { proxy ->
+            val media = proxy.image
+            if (media == null) proxy.close() else {
+                val rotation = proxy.imageInfo.rotationDegrees
+                objectDetector.process(InputImage.fromMediaImage(media, rotation))
+                    .addOnSuccessListener { objects ->
+                        val target = objects.firstOrNull()
+                        if (target != null) {
+                            missedObjectFrames = 0
+                            val box = target.boundingBox
+                            val rw = if (rotation % 180 == 0) proxy.width else proxy.height
+                            val rh = if (rotation % 180 == 0) proxy.height else proxy.width
+                            _state.update { it.copy(objectDetected = true, objectBox = RectF(
+                                (box.left.toFloat() / rw).coerceIn(0f, 1f),
+                                (box.top.toFloat() / rh).coerceIn(0f, 1f),
+                                (box.right.toFloat() / rw).coerceIn(0f, 1f),
+                                (box.bottom.toFloat() / rh).coerceIn(0f, 1f)
+                            ), objectTrackingId = target.trackingId) }
+                        } else {
+                            missedObjectFrames++
+                            if (missedObjectFrames >= 3) _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                        }
+                    }
+                    .addOnFailureListener {
+                        missedObjectFrames++
+                        if (missedObjectFrames >= 3) _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null) }
+                    }
+                    .addOnCompleteListener { proxy.close() }
+            }
+        }
+        p.unbindAll()
+        val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture, analysis)
         preview.surfaceProvider = view.surfaceProvider
         camera = cam
+        val hasTorch = cam.cameraInfo.hasFlashUnit()
+        _state.update { it.copy(torchAvailable = hasTorch, torchOn = false) }
         imageCapture = capture
+        imageAnalysis = analysis
         cameraInfo = readCameraInfo(cam, capture)""",
     """        val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -661,13 +697,14 @@ replace_once(
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "        provider?.unbindAll()\n        provider = null; camera = null; imageCapture = null; previewView = null",
-    """        imageAnalysis?.clearAnalyzer()
+    """        camera?.cameraControl?.enableTorch(false)
+        _state.update { it.copy(torchOn = false) }
+        imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
         provider?.unbindAll()
         provider = null; camera = null; imageCapture = null; previewView = null
         objectDetector.close()
-        analysisExecutor.shutdown()"""
-)
+        analysisExecutor.shutdown()""")
 replace_once(
     "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
     "        // Taps over the camera mark the object (before the first photo).",

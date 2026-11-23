@@ -634,7 +634,7 @@ import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions"""
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "        val smartAvailable: Boolean = true,",
-    "        val smartAvailable: Boolean = true,\n        val objectDetected: Boolean? = null,\n        val objectBox: RectF? = null,\n        val objectTrackingId: Int? = null,"
+    "        val smartAvailable: Boolean = true,\n        val objectDetected: Boolean? = null,\n        val objectNearEdge: Boolean = false,\n        val objectBox: RectF? = null,\n        val objectTrackingId: Int? = null,"
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
@@ -695,22 +695,28 @@ replace_once(
                             missedObjectFrames = 0
                             target.trackingId?.let { selectedObjectTrackingId = it }
                             val box = target.boundingBox
+                            val left = (box.left.toFloat() / rotatedWidth).coerceIn(0f, 1f)
+                            val top = (box.top.toFloat() / rotatedHeight).coerceIn(0f, 1f)
+                            val right = (box.right.toFloat() / rotatedWidth).coerceIn(0f, 1f)
+                            val bottom = (box.bottom.toFloat() / rotatedHeight).coerceIn(0f, 1f)
+                            val nearEdge = left <= 0.03f || top <= 0.03f || right >= 0.97f || bottom >= 0.97f
                             _state.update { it.copy(
                                 objectDetected = true,
-                                objectBox = RectF(
-                                    (box.left.toFloat() / rotatedWidth).coerceIn(0f, 1f),
-                                    (box.top.toFloat() / rotatedHeight).coerceIn(0f, 1f),
-                                    (box.right.toFloat() / rotatedWidth).coerceIn(0f, 1f),
-                                    (box.bottom.toFloat() / rotatedHeight).coerceIn(0f, 1f),
-                                ),
+                                objectNearEdge = nearEdge,
+                                objectBox = RectF(left, top, right, bottom),
                                 objectTrackingId = target.trackingId,
-                                notice = if (it.notice == Notice.TARGET_LOST) noticeFor(it.mode, armed = it.phase == Phase.CAPTURING) else it.notice,
+                                notice = when {
+                                    nearEdge -> Notice.TARGET_EDGE
+                                    it.notice == Notice.TARGET_EDGE || it.notice == Notice.TARGET_LOST ->
+                                        noticeFor(it.mode, armed = it.phase == Phase.CAPTURING)
+                                    else -> it.notice
+                                },
                             ) }
                         } else {
                             missedObjectFrames++
                             if (missedObjectFrames >= 3) {
                                 selectedObjectTrackingId = null
-                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null, notice = Notice.TARGET_LOST) }
+                                _state.update { it.copy(objectDetected = false, objectNearEdge = false, objectBox = null, objectTrackingId = null, notice = Notice.TARGET_LOST) }
                             }
                         }
                     }
@@ -718,7 +724,7 @@ replace_once(
                         missedObjectFrames++
                         if (missedObjectFrames >= 3) {
                             selectedObjectTrackingId = null
-                                _state.update { it.copy(objectDetected = false, objectBox = null, objectTrackingId = null, notice = Notice.TARGET_LOST) }
+                                _state.update { it.copy(objectDetected = false, objectNearEdge = false, objectBox = null, objectTrackingId = null, notice = Notice.TARGET_LOST) }
                         }
                     }
                     .addOnCompleteListener { proxy.close() }
@@ -763,7 +769,7 @@ replace_once(
                 val t = offsetY + detectedBox.top * contentHeight
                 val r = offsetX + detectedBox.right * contentWidth
                 val b = offsetY + detectedBox.bottom * contentHeight
-                drawRect(Color(0xFF36E58A), topLeft = Offset(l, t), size = Size(r - l, b - t), style = Stroke(width = 3.dp.toPx()))
+                drawRect(if (state.objectNearEdge) Color(0xFFFFC04D) else Color(0xFF36E58A), topLeft = Offset(l, t), size = Size(r - l, b - t), style = Stroke(width = 3.dp.toPx()))
                 drawCircle(Color(0xFF36E58A), radius = 5.dp.toPx(), center = Offset((l + r) / 2f, t))
             }
         }
@@ -771,18 +777,19 @@ replace_once(
             Modifier.fillMaxWidth().padding(top = 54.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
-            val trackingLabel = when (state.objectDetected) {
-                true -> "ОБЪЕКТ В КАДРЕ · ОТСЛЕЖИВАЕТСЯ"
-                false -> "ОБЪЕКТ ПОТЕРЯН · НАВЕДИТЕ КАМЕРУ"
-                null -> "НАВЕДИТЕ КАМЕРУ НА ПРЕДМЕТ"
+            val trackingLabel = when {
+                state.objectNearEdge -> "ОБЪЕКТ У КРАЯ · ВЕРНИТЕ В ЦЕНТР"
+                state.objectDetected == true -> "ОБЪЕКТ В КАДРЕ · ОТСЛЕЖИВАЕТСЯ"
+                state.objectDetected == false -> "ОБЪЕКТ ПОТЕРЯН · НАВЕДИТЕ КАМЕРУ"
+                else -> "НАВЕДИТЕ КАМЕРУ НА ПРЕДМЕТ"
             }
             Text(
                 trackingLabel,
-                color = if (state.objectDetected == true) Color(0xFF36E58A) else Color.White,
+                color = if (state.objectNearEdge) Color(0xFFFFC04D) else if (state.objectDetected == true) Color(0xFF36E58A) else Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.background(
-                    if (state.objectDetected == false) Color(0xCCB3261E) else Scrim,
+                    if (state.objectNearEdge) Color(0xCC8A5A00) else if (state.objectDetected == false) Color(0xCCB3261E) else Scrim,
                     RoundedCornerShape(50),
                 ).padding(horizontal = 12.dp, vertical = 7.dp),
             )
@@ -804,16 +811,17 @@ print("Added live ML Kit object detection/tracking, bounding-box overlay, and lo
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "    enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS }",
-    "    enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS, TARGET_LOST }"
+    "    enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS, TARGET_LOST, TARGET_EDGE }"
 )
 
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "    private fun takePhoto(orientation: DeviceOrientation?, manual: Boolean) {\n        val ic = imageCapture ?: run { synchronized(lock) { shutter.onPhotoFinished(false) }; return }",
     """    private fun takePhoto(orientation: DeviceOrientation?, manual: Boolean) {
-        if (_state.value.objectDetected == false) {
+        val liveTarget = _state.value
+        if (liveTarget.objectDetected == false || liveTarget.objectNearEdge) {
             synchronized(lock) { shutter.onPhotoFinished(false) }
-            _state.update { it.copy(notice = Notice.TARGET_LOST) }
+            _state.update { it.copy(notice = if (it.objectNearEdge) Notice.TARGET_EDGE else Notice.TARGET_LOST) }
             return
         }
         val ic = imageCapture ?: run { synchronized(lock) { shutter.onPhotoFinished(false) }; return }"""
@@ -821,6 +829,6 @@ replace_once(
 replace_once(
     "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
     "    Notice.NO_SENSORS -> stringResource(R.string.capture_no_sensors)",
-    "    Notice.NO_SENSORS -> stringResource(R.string.capture_no_sensors)\n    Notice.TARGET_LOST -> \"Предмет потерян — фото не сделано. Верните его в кадр.\""
+    "    Notice.NO_SENSORS -> stringResource(R.string.capture_no_sensors)\n    Notice.TARGET_LOST -> \"Предмет потерян — фото не сделано. Верните его в кадр.\"\n    Notice.TARGET_EDGE -> \"Предмет у края кадра — верните его ближе к центру.\""
 )
 print("Added tap-nearest target selection and blocked shutter when the target is explicitly lost.")

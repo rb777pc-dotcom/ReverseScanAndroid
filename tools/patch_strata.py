@@ -832,3 +832,172 @@ replace_once(
     "    Notice.NO_SENSORS -> stringResource(R.string.capture_no_sensors)\n    Notice.TARGET_LOST -> \"Предмет потерян — фото не сделано. Верните его в кадр.\"\n    Notice.TARGET_EDGE -> \"Предмет у края кадра — верните его ближе к центру.\""
 )
 print("Added tap-nearest target selection and blocked shutter when the target is explicitly lost.")
+
+
+# ReverseScan capture archive import + resume interrupted scans.
+def add_archive_resume():
+    vm_path = "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryViewModel.kt"
+    p = ROOT / vm_path
+    s = p.read_text()
+    s = s.replace("import java.io.File\n", "import java.io.File\nimport java.util.zip.ZipInputStream\n")
+    anchor = "    /** Writes the capture as a .zip to [uri] (chosen by the user with the system file picker). */"
+    method = r'''
+    /** Import a ZIP previously created by CaptureExport. */
+    fun importCapture(uri: Uri) {
+        if (exportJob?.isActive == true) return
+        exportJob = viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                val app = getApplication<Application>()
+                val temp = File(app.cacheDir, "capture-import-" + System.currentTimeMillis())
+                try {
+                    temp.mkdirs()
+                    app.contentResolver.openInputStream(uri)?.use { raw ->
+                        ZipInputStream(raw).use { zip ->
+                            val buffer = ByteArray(131072)
+                            while (true) {
+                                val entry = zip.nextEntry ?: break
+                                val name = entry.name.replace('\\', '/')
+                                require(!name.startsWith("/") && name.split('/').none { it == ".." })
+                                val target = File(temp, name).canonicalFile
+                                require(target.path.startsWith(temp.canonicalPath + File.separator))
+                                if (entry.isDirectory) target.mkdirs() else {
+                                    target.parentFile?.mkdirs()
+                                    target.outputStream().use { out ->
+                                        while (true) { val n = zip.read(buffer); if (n < 0) break; out.write(buffer, 0, n) }
+                                    }
+                                }
+                                zip.closeEntry()
+                            }
+                        }
+                    } ?: error("Cannot open archive")
+                    val mf = File(temp, CaptureStore.MANIFEST)
+                    val ff = File(temp, CaptureStore.FRAMES)
+                    require(mf.isFile && ff.isFile) { "Not a capture archive" }
+                    val decoded = app.strata3d.capture.format.CaptureJson.decodeManifest(mf.readText(Charsets.UTF_8))
+                    val records = ff.readLines(Charsets.UTF_8).filter { it.isNotBlank() }
+                        .map { app.strata3d.capture.format.CaptureJson.decodeFrame(it) }
+                    require(records.isNotEmpty())
+                    records.forEach { require(File(temp, it.image).isFile) { "Missing image" } }
+                    val created = store.create(decoded.copy(id = "", frameCount = records.size,
+                        state = app.strata3d.capture.format.CaptureState.COMPLETE, updatedAt = System.currentTimeMillis()))
+                    try {
+                        temp.walkTopDown().filter { it.isFile && it.name != CaptureStore.MANIFEST }.forEach { source ->
+                            val dest = File(created.dir, source.relativeTo(temp).path)
+                            dest.parentFile?.mkdirs()
+                            source.copyTo(dest, overwrite = true)
+                        }
+                        store.writeManifest(created.dir, created.manifest.copy(frameCount = records.size,
+                            state = app.strata3d.capture.format.CaptureState.COMPLETE))
+                    } catch (e: Exception) { store.delete(created.dir); throw e }
+                    true
+                } catch (e: Exception) {
+                    android.util.Log.e("CaptureImport", "Import failed", e); false
+                } finally { temp.deleteRecursively() }
+            }
+            _messages.value = if (ok) R.string.capture_imported else R.string.capture_import_failed
+            if (ok) refresh()
+        }
+    }
+
+'''
+    if "fun importCapture(uri: Uri)" not in s:
+        if anchor not in s: raise SystemExit("import VM anchor missing")
+        s = s.replace(anchor, method + anchor, 1)
+    p.write_text(s)
+
+    lib_path = "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryScreen.kt"
+    p = ROOT / lib_path
+    s = p.read_text()
+    anchor = "    val exporter = rememberCaptureExporter(viewModel)\n"
+    if "val importer = rememberLauncherForActivityResult" not in s:
+        s = s.replace(anchor, anchor + '''    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.importCapture(it) }
+    }
+''', 1)
+    anchor = '''                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.capture_device_report)) },'''
+    if "R.string.capture_import)" not in s:
+        s = s.replace(anchor, '''                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.capture_import)) },
+                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
+                            onClick = { menuOpen = false; importer.launch(arrayOf("application/zip", "application/octet-stream")) },
+                        )
+''' + anchor, 1)
+    p.write_text(s)
+
+    cam_path = "app/src/main/java/app/strata3d/capture/CameraXCapture.kt"
+    p = ROOT / cam_path
+    s = p.read_text()
+    s = s.replace("    private val appVersion: String,\n) {",
+                  "    private val appVersion: String,\n    private val resumeCaptureId: String? = null,\n) {", 1)
+    s = s.replace("    init {\n        val mode =",
+'''    init {
+        resumeCaptureId?.let { id ->
+            store.list().firstOrNull { it.id == id }?.let { existing ->
+                capture = existing
+                manifest = existing.manifest
+                val frames = store.readFrames(existing.dir)
+                photoCount = frames.maxOfOrNull { it.index } ?: 0
+                frames.forEach { f -> f.orientation?.let { rings.add(DeviceOrientation.of(it.x, it.y, it.z, it.w)) } }
+                _state.update { it.copy(phase = Phase.AIMING, photoCount = photoCount,
+                    lowerRing = rings.cells(CoverageRings.Ring.LOWER),
+                    upperRing = rings.cells(CoverageRings.Ring.UPPER), notice = Notice.TAP_OBJECT) }
+            }
+        }
+        val mode =''', 1)
+    s = s.replace("if (synchronized(lock) { photoCount > 0 || finishing }) return",
+                  "if (synchronized(lock) { (photoCount > 0 && resumeCaptureId == null) || finishing }) return", 1)
+    s = s.replace('''            } else {
+                manifest = manifest?.copy(objectTap = tap)
+                manifest?.let { m -> capture?.let { c -> runIo { writeManifestQuietly(c.dir, m) } } }
+            }''',
+'''            } else if (resumeCaptureId == null) {
+                manifest = manifest?.copy(objectTap = tap)
+                manifest?.let { m -> capture?.let { c -> runIo { writeManifestQuietly(c.dir, m) } } }
+            }''', 1)
+    p.write_text(s)
+
+    screen_path = "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt"
+    p = ROOT / screen_path
+    s = p.read_text()
+    s = s.replace("fun CaptureScreen(store: CaptureStore, onFinished: (String?) -> Unit) {",
+                  "fun CaptureScreen(store: CaptureStore, onFinished: (String?) -> Unit, resumeCaptureId: String? = null) {", 1)
+    s = s.replace('CameraXCapture(context.applicationContext, store, version ?: "")',
+                  'CameraXCapture(context.applicationContext, store, version ?: "", resumeCaptureId)', 1)
+    p.write_text(s)
+
+    summary_path = "app/src/main/java/app/strata3d/capture/ui/CaptureSummaryScreen.kt"
+    p = ROOT / summary_path
+    s = p.read_text()
+    s = s.replace(
+        "fun CaptureSummaryScreen(viewModel: CaptureLibraryViewModel, captureId: String?, onDone: () -> Unit, onCheckBox: (String) -> Unit) {",
+        "fun CaptureSummaryScreen(viewModel: CaptureLibraryViewModel, captureId: String?, onDone: () -> Unit, onCheckBox: (String) -> Unit, onContinueCapture: (String) -> Unit = {}) {", 1)
+    anchor = '''            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { renaming = true })'''
+    if "R.string.capture_continue" not in s:
+        if anchor not in s: raise SystemExit("summary continue anchor missing")
+        s = s.replace(anchor, '''            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onContinueCapture(capture.id) }) { Text(stringResource(R.string.capture_continue)) }
+                OutlinedButton(onClick = { renaming = true })''', 1)
+    p.write_text(s)
+
+    activity_path = "app/src/main/java/app/strata3d/capture/ui/CaptureActivity.kt"
+    p = ROOT / activity_path
+    s = p.read_text()
+    s = s.replace("            var summaryId by rememberSaveable { mutableStateOf(openCapture) }",
+                  "            var summaryId by rememberSaveable { mutableStateOf(openCapture) }\n            var resumeCaptureId by rememberSaveable { mutableStateOf<String?>(null) }", 1)
+    s = s.replace("store = library.store,\n                        onFinished =", "store = library.store,\n                        resumeCaptureId = resumeCaptureId,\n                        onFinished =", 1)
+    s = s.replace("captureId = summaryId,\n                        onDone = { screen = Screen.LIBRARY },",
+                  "captureId = summaryId,\n                        onDone = { screen = Screen.LIBRARY },\n                        onContinueCapture = { id -> resumeCaptureId = id; screen = Screen.PREFLIGHT },", 1)
+    if "onContinueCapture = { id ->" not in s: raise SystemExit("activity continuation anchor missing")
+    p.write_text(s)
+
+    capture_ru.update({
+        "capture_import": "Импорт ZIP съёмки",
+        "capture_imported": "Съёмка импортирована",
+        "capture_import_failed": "Не удалось импортировать архив. Выберите ZIP-экспорт ReverseScan 3D.",
+        "capture_continue": "Доснять объект",
+    })
+
+add_archive_resume()
+print("Added capture ZIP import and in-place continuation of existing scans.")

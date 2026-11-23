@@ -1006,7 +1006,7 @@ def add_archive_resume():
     # terminated RECORDING session to INTERRUPTED and recovers all synced frame records.
     if "LaunchedEffect(screen) { if (screen == Screen.LIBRARY) library.refresh() }" not in s:
         s = s.replace("            var shutterSettings by remember { mutableStateOf(false) }",
-                      "            var shutterSettings by remember { mutableStateOf(false) }\\n\\n            LaunchedEffect(screen) { if (screen == Screen.LIBRARY) library.refresh() }", 1)
+                      "            var shutterSettings by remember { mutableStateOf(false) }\n\n            LaunchedEffect(screen) { if (screen == Screen.LIBRARY) library.refresh() }", 1)
 
     s = s.replace("store = library.store,\n                        onFinished =", "store = library.store,\n                        resumeCaptureId = resumeCaptureId,\n                        onFinished =", 1)
     s = s.replace("                            library.refresh()\n                            when {",

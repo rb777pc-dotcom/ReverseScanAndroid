@@ -847,11 +847,11 @@ def add_archive_resume():
         if (exportJob?.isActive == true) return
         exportJob = viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
-                val app = getApplication<Application>()
-                val temp = File(app.cacheDir, "capture-import-" + System.currentTimeMillis())
+                val application = getApplication<Application>()
+                val temp = File(application.cacheDir, "capture-import-" + System.currentTimeMillis())
                 try {
                     temp.mkdirs()
-                    app.contentResolver.openInputStream(uri)?.use { raw ->
+                    application.contentResolver.openInputStream(uri)?.use { raw ->
                         ZipInputStream(raw).use { zip ->
                             val buffer = ByteArray(131072)
                             while (true) {

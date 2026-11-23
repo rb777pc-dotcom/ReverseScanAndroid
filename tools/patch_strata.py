@@ -878,7 +878,7 @@ def add_archive_resume():
                         .map { app.strata3d.capture.format.CaptureJson.decodeFrame(it) }
                     require(records.isNotEmpty())
                     records.forEach { frame ->
-                        val imagePath = frame.image.replace('\\\\', '/')
+                        val imagePath = frame.image.replace('\\', '/')
                         require(!imagePath.startsWith("/") && imagePath.split('/').none { it == ".." }) { "Unsafe image path" }
                         val imageFile = File(temp, imagePath).canonicalFile
                         require(imageFile.path.startsWith(temp.canonicalPath + File.separator) && imageFile.isFile) { "Missing or unsafe image" }

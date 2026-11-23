@@ -1085,3 +1085,56 @@ if "import app.strata3d.R" not in vm_text:
     vm_text = vm_text.replace("import app.strata3d.capture.format.CaptureExport", "import app.strata3d.R\nimport app.strata3d.capture.format.CaptureExport", 1)
 vm_file.write_text(vm_text)
 print("Added capture ZIP import and in-place continuation of existing scans.")
+
+# Put model import on the capture library screen as well. This is the screen users
+# land on when they enter scanning; the action must be visible there, not only in
+# the separate 3D viewer toolbar. The selected URI is handed to MainActivity.
+def expose_model_import_in_capture_library():
+    path = ROOT / "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryScreen.kt"
+    source = path.read_text()
+    if "val modelImporter = rememberLauncherForActivityResult" not in source:
+        source = source.replace(
+            "import android.content.Context\\n",
+            "import android.content.Context\\nimport android.content.Intent\\n",
+            1,
+        )
+        source = source.replace(
+            "import androidx.compose.material.icons.outlined.MoreVert\\n",
+            "import androidx.compose.material.icons.outlined.MoreVert\\nimport androidx.compose.material.icons.outlined.FolderOpen\\n",
+            1,
+        )
+        source = source.replace(
+            "import app.strata3d.R\\n",
+            "import app.strata3d.R\\nimport app.strata3d.MainActivity\\n",
+            1,
+        )
+        anchor = "    val exporter = rememberCaptureExporter(viewModel)\\n"
+        if anchor not in source:
+            raise SystemExit("model import launcher anchor missing in CaptureLibraryScreen")
+        source = source.replace(anchor, anchor + """    val modelImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            val intent = Intent(context, MainActivity::class.java)
+                .setAction(Intent.ACTION_VIEW)
+                .setDataAndType(it, "*/*")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            context.startActivity(intent)
+        }
+    }
+""", 1)
+        anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\\n"
+        if anchor not in source:
+            raise SystemExit("model import button anchor missing in CaptureLibraryScreen")
+        source = source.replace(anchor, anchor + """            OutlinedButton(
+                onClick = { modelImporter.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Открыть 3D-модель")
+            }
+""", 1)
+    path.write_text(source)
+
+expose_model_import_in_capture_library()
+print("Exposed a persistent 3D-model import button on the capture library screen.")
+

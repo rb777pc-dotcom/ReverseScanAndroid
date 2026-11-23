@@ -350,7 +350,7 @@ p.write_text(viewer)
 replace_once(
     "app/src/main/java/app/strata3d/capture/recon/ReconRunner.kt",
     "if (placed < ReconPlan.minPlacement(views)) {",
-    "if (placed < ReconPlan.goodPlacement(views)) {"
+    "if (placed < ReconPlan.minPlacement(views)) {"
 )
 
 # Translate the information pages while preserving the original author and AGPL notices.

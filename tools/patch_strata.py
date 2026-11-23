@@ -492,8 +492,7 @@ replace_region(
             exec("sfmrecon", sequentialArgs, Stage.CAMERAS, threads = 1)
             placed = registeredViews()
             if (placed < firstPlaced) {
-                throw Stop(Error.TOO_FEW_PHOTOS_PLACED,
-                    "sequential matching placed $placed photos, below the initial $firstPlaced")
+                Log.w(TAG, "sequential fallback placed $placed, below the initial $firstPlaced; testing alternate seeds")
             }
 
             // A weak automatic seed can leave most views unregistered even when the matching graph
@@ -511,6 +510,7 @@ replace_region(
                     exec("sfmrecon", args, Stage.CAMERAS, threads = 1)
                     true
                 } catch (e: Stop) {
+                    if (e.error != Error.TOOL_FAILED) throw e
                     Log.w(TAG, "SfM seed $a,$b rejected: ${e.detail}")
                     false
                 }
@@ -524,16 +524,26 @@ replace_region(
                     if (bestPlaced >= ReconPlan.goodPlacement(views)) break
                 }
             }
-            val restoreArgs = bestPair?.let { (a, b) ->
-                sequentialArgs.dropLast(1) + listOf("--initial-pair=$a,$b", scene.path)
-            } ?: sequentialArgs
-            exec("sfmrecon", restoreArgs, Stage.CAMERAS, threads = 1)
-            placed = registeredViews()
-            if (placed < firstPlaced) {
-                throw Stop(Error.TOO_FEW_PHOTOS_PLACED,
-                    "best sequential seed placed $placed photos, below the initial $firstPlaced")
+            if (bestPlaced < firstPlaced) {
+                // Alternate sequential seeds did not beat the original solution. Rebuild exhaustive
+                // matches and restore the deterministic original path rather than keeping a worse model.
+                File(scene, "prebundle.sfm").delete()
+                File(scene, "synth_0.out").delete()
+                exec("sfmrecon", ReconPlan.Args.sfm(scene.path, settings.sfm), Stage.CAMERAS, threads = 1)
+                placed = registeredViews()
+                if (placed < firstPlaced) {
+                    throw Stop(Error.TOO_FEW_PHOTOS_PLACED,
+                        "best recovery placed $placed photos, below the initial $firstPlaced")
+                }
+                Log.i(TAG, "SfM restored original exhaustive solution")
+            } else {
+                val restoreArgs = bestPair?.let { (a, b) ->
+                    sequentialArgs.dropLast(1) + listOf("--initial-pair=$a,$b", scene.path)
+                } ?: sequentialArgs
+                exec("sfmrecon", restoreArgs, Stage.CAMERAS, threads = 1)
+                placed = registeredViews()
+                Log.i(TAG, "SfM best seed: ${bestPair?.let { "${it.first},${it.second}" } ?: "automatic"}")
             }
-            Log.i(TAG, "SfM best seed: ${bestPair?.let { "${it.first},${it.second}" } ?: "automatic"}")
         }
         Log.i(TAG, "SfM placed $placed of $views photos after $attempt matching/seed attempt(s) (${settings.reason})")
 """,

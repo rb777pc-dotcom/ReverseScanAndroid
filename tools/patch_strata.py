@@ -605,6 +605,52 @@ manifest_text = manifest_text.replace(
 manifest.write_text(manifest_text)
 
 
+# Replace the upstream Strata glyph everywhere in the viewer with the same neutral
+# 3D wireframe mark used by ReverseScan. No letter-shaped monogram.
+replace_once(
+    "app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
+    `/** The Strata:3D logo; its dark strokes use the theme's text colour so it reads on light and dark bars. */
+@Composable
+fun StrataLogo(modifier: Modifier = Modifier) {
+    val ink = MaterialTheme.colorScheme.onSurface
+    Box(modifier) {
+        Image(
+            painter = painterResource(R.drawable.logo_layer_ink),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(ink),
+            modifier = Modifier.matchParentSize(),
+        )
+        Image(
+            painter = painterResource(R.drawable.logo_layer_cyan),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(BrandCyan),
+            modifier = Modifier.matchParentSize(),
+        )
+    }
+}`,
+    `/** ReverseScan 3D wireframe mark; deliberately contains no Strata lettering. */
+@Composable
+fun StrataLogo(modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(R.drawable.ic_brand_mark),
+        contentDescription = stringResource(R.string.app_name),
+        modifier = modifier,
+    )
+}`
+)
+
+# Make model import a permanent, visible top-bar action instead of hiding it in Settings.
+replace_once(
+    "app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
+    `                            ThemeToggleButton(dark = dark, onToggle = onToggleTheme)`,
+    `                            TextButton(onClick = launchPicker) {
+                                Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.open_file))
+                            }
+                            ThemeToggleButton(dark = dark, onToggle = onToggleTheme)`
+)
+
 # Live object detection and tracking in the camera preview.
 # ML Kit's bundled stream detector supplies a real object bounding box and tracking ID.
 # This is deliberately described as object tracking, not pixel-level segmentation.

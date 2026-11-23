@@ -1385,3 +1385,22 @@ replace_once(
     "} else if (resumeCaptureId == null) {",
     "} else {"
 )
+
+
+# Target-loss gating is performed before SmartShutter receives sensor readings;
+# leave SmartShutter's own pause flag exclusively under the user's pause control.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                            val wasLost = _state.value.objectDetected == false\n                            if (wasLost && !_state.value.paused) shutter.setPaused(false)\n",
+    ""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                                if (!_state.value.paused) shutter.setPaused(true)\n",
+    ""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                            if (!_state.value.paused) shutter.setPaused(true)\n",
+    ""
+)

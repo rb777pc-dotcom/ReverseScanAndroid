@@ -559,7 +559,7 @@ manifest.write_text(manifest_text)
 # This is deliberately described as object tracking, not pixel-level segmentation.
 replace_once(
     "app/build.gradle.kts",
-    "    implementation(libs.junit)",
+    "    testImplementation(libs.junit)",
     "    implementation(\"com.google.mlkit:object-detection:17.0.2\")\n\n    implementation(libs.junit)"
 )
 replace_once(

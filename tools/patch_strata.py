@@ -602,7 +602,7 @@ replace_once(
     private val objectDetector = ObjectDetection.getClient(
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
-            .enableMultipleObjects(false)
+            .enableMultipleObjects(true)
             .enableClassification(false)
             .build()
     )
@@ -736,30 +736,7 @@ replace_once(
 print("Added live ML Kit object detection/tracking, bounding-box overlay, and lost-target status.")
 
 
-# Prefer the object nearest the user's tap; do not silently photograph after target loss.
-replace_once(
-    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    "enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS }",
-    "enum class Notice { NONE, TAP_OBJECT, KEEP_MOVING, HOLD_STEADY, SAVING_PHOTO, PAUSED, MANUAL, HOT, LOW_STORAGE, PHOTO_FAILED, NO_SENSORS, TARGET_LOST }"
-)
-replace_once(
-    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    ".enableMultipleObjects(false)",
-    ".enableMultipleObjects(true)"
-)
-replace_once(
-    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    "val target = objects.firstOrNull()",
-    """val selectedTap = synchronized(lock) { manifest?.objectTap }
-                        val target = if (selectedTap != null) {
-                            objects.minByOrNull { obj ->
-                                val b = obj.boundingBox
-                                val dx = (b.centerX().toFloat() / (if (rotation % 180 == 0) proxy.width else proxy.height)) - selectedTap.u.toFloat()
-                                val dy = (b.centerY().toFloat() / (if (rotation % 180 == 0) proxy.height else proxy.width)) - selectedTap.v.toFloat()
-                                dx * dx + dy * dy
-                            }
-                        } else objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }"""
-)
+# Target selection is already implemented in the ImageAnalysis callback above.
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
     "    private fun takePhoto(orientation: DeviceOrientation?, manual: Boolean) {\n        val ic = imageCapture ?: run { synchronized(lock) { shutter.onPhotoFinished(false) }; return }",

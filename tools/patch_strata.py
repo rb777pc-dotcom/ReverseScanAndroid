@@ -1338,7 +1338,7 @@ visible_import = '''            OutlinedButton(
                 Text("Импортировать съёмку из ZIP")
             }
 '''
-library_anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\\n"
+library_anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\n"
 if visible_import not in library_text:
     if library_anchor not in library_text:
         raise SystemExit("Visible capture import button anchor missing")

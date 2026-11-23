@@ -1143,3 +1143,236 @@ def expose_model_import_in_capture_library():
 expose_model_import_in_capture_library()
 print("Exposed a persistent 3D-model import button on the capture library screen.")
 
+
+
+# ---- Follow-up fixes from the first real-device test (2026-11-23) ----
+
+# A reconstruction with a majority of cameras registered is still useful. The
+# higher 60% value is a retry target, not a fatal threshold: do not throw away a
+# partial scene when it has enough geometry to continue through dense matching.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/recon/ReconRunner.kt",
+    "if (placed < ReconPlan.minPlacement(views)) {",
+    "if (placed < ReconPlan.minPlacement(views)) {"
+)
+
+# Try several sequential match graph widths. A single fixed window can miss
+# long-baseline links when the orbit contains gaps or the phone pauses between sides.
+recon_path = ROOT / "app/src/main/java/app/strata3d/capture/recon/ReconRunner.kt"
+recon_text = recon_path.read_text()
+old_seq = '''            val sequentialArgs = ReconPlan.Args.sfmSequential(scene.path, settings.sfm, 8)
+            exec("sfmrecon", sequentialArgs, Stage.CAMERAS, threads = 1)
+            placed = registeredViews()
+            if (placed < ReconPlan.goodPlacement(views)) {'''
+new_seq = '''            var bestWindow = 8
+            var bestWindowPlaced = -1
+            for (window in listOf(8, 12, 16)) {
+                File(scene, "prebundle.sfm").delete()
+                File(scene, "synth_0.out").delete()
+                val candidateArgs = ReconPlan.Args.sfmSequential(scene.path, settings.sfm, window)
+                exec("sfmrecon", candidateArgs, Stage.CAMERAS, threads = 1)
+                val candidatePlaced = registeredViews()
+                Log.i(TAG, "SfM sequential window $window placed $candidatePlaced of $views photos")
+                if (candidatePlaced > bestWindowPlaced) {
+                    bestWindowPlaced = candidatePlaced
+                    bestWindow = window
+                }
+            }
+            File(scene, "prebundle.sfm").delete()
+            File(scene, "synth_0.out").delete()
+            val sequentialArgs = ReconPlan.Args.sfmSequential(scene.path, settings.sfm, bestWindow)
+            exec("sfmrecon", sequentialArgs, Stage.CAMERAS, threads = 1)
+            placed = registeredViews()
+            Log.i(TAG, "SfM selected sequential window $bestWindow: $placed of $views photos")
+            if (placed < ReconPlan.goodPlacement(views)) {'''
+if old_seq not in recon_text:
+    raise SystemExit("Sequential SfM recovery block not found; refusing unsafe patch")
+recon_path.write_text(recon_text.replace(old_seq, new_seq, 1))
+
+# Keep the project on disk only after a read-back verification. If a final write
+# fails, leave the folder recoverable as INTERRUPTED instead of claiming success.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/format/CaptureStore.kt",
+    "        Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)",
+    """        try {
+            Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }"""
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    '''                else {
+                    val frames = store.readFrames(c.dir).size
+                    m?.let { store.writeManifest(c.dir, it.copy(state = CaptureState.COMPLETE, frameCount = frames, updatedAt = System.currentTimeMillis())) }
+                    savedId = c.id
+                }''',
+    '''                else {
+                    val frames = store.readFrames(c.dir)
+                    check(frames.isNotEmpty()) { "No readable photos to save" }
+                    val base = m ?: store.readManifest(c.dir)
+                    val complete = base.copy(
+                        state = CaptureState.COMPLETE,
+                        frameCount = frames.size,
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                    store.writeManifest(c.dir, complete)
+                    val verified = store.readManifest(c.dir)
+                    check(verified.id == c.id && verified.state == CaptureState.COMPLETE &&
+                        verified.frameCount == frames.size && store.readFrames(c.dir).size == frames.size) {
+                        "Capture save verification failed"
+                    }
+                    savedId = c.id
+                }'''
+)
+
+# The live shutter must wait for the selected object to be detected, and pause
+# automatically while it is lost. Keep manual pause independent from target loss.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "    private val shutter = SmartShutter(SmartShutter.Settings(minIntervalMs = device.minShutterIntervalMs))",
+    "    private val shutter = SmartShutter(SmartShutter.Settings(stepDeg = 6.0, steadyRadPerS = 0.28, steadyMs = 120, minIntervalMs = minOf(device.minShutterIntervalMs, 350L)))"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "    @Volatile private var selectedObjectTrackingId: Int? = null",
+    "    @Volatile private var selectedObjectTrackingId: Int? = null\n    @Volatile private var lastObjectBox: RectF? = null"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    '''                        val lockedId = selectedObjectTrackingId
+                        val target = when {
+                            selectedTap == null -> objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+                            lockedId != null -> objects.firstOrNull { it.trackingId == lockedId }
+                            else -> objects.mapNotNull { obj ->
+                                val b = obj.boundingBox
+                                val left = b.left.toFloat() / rotatedWidth
+                                val top = b.top.toFloat() / rotatedHeight
+                                val right = b.right.toFloat() / rotatedWidth
+                                val bottom = b.bottom.toFloat() / rotatedHeight
+                                val u = selectedTap.u.toFloat()
+                                val v = selectedTap.v.toFloat()
+                                val dx = maxOf(left - u, 0f, u - right)
+                                val dy = maxOf(top - v, 0f, v - bottom)
+                                obj to (dx * dx + dy * dy)
+                            }.filter { it.second <= 0.16f * 0.16f }
+                                .minByOrNull { it.second }?.first
+                        }''',
+    '''                        val lockedId = selectedObjectTrackingId
+                        val previousBox = lastObjectBox
+                        val nearestPrevious = previousBox?.let { previous ->
+                            objects.mapNotNull { obj ->
+                                val b = obj.boundingBox
+                                val left = b.left.toFloat() / rotatedWidth
+                                val top = b.top.toFloat() / rotatedHeight
+                                val right = b.right.toFloat() / rotatedWidth
+                                val bottom = b.bottom.toFloat() / rotatedHeight
+                                val dx = (left + right) / 2f - previous.centerX()
+                                val dy = (top + bottom) / 2f - previous.centerY()
+                                val distance2 = dx * dx + dy * dy
+                                val area = maxOf(0.0001f, (right - left) * (bottom - top))
+                                val oldArea = maxOf(0.0001f, previous.width() * previous.height())
+                                val ratio = area / oldArea
+                                if (distance2 <= 0.22f * 0.22f && ratio in 0.25f..4f) obj to distance2 else null
+                            }.minByOrNull { it.second }?.first
+                        }
+                        val target = when {
+                            selectedTap == null -> objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+                            lockedId != null -> objects.firstOrNull { it.trackingId == lockedId } ?: nearestPrevious
+                            previousBox != null -> nearestPrevious
+                            else -> objects.mapNotNull { obj ->
+                                val b = obj.boundingBox
+                                val left = b.left.toFloat() / rotatedWidth
+                                val top = b.top.toFloat() / rotatedHeight
+                                val right = b.right.toFloat() / rotatedWidth
+                                val bottom = b.bottom.toFloat() / rotatedHeight
+                                val u = selectedTap.u.toFloat()
+                                val v = selectedTap.v.toFloat()
+                                val dx = maxOf(left - u, 0f, u - right)
+                                val dy = maxOf(top - v, 0f, v - bottom)
+                                obj to (dx * dx + dy * dy)
+                            }.filter { it.second <= 0.16f * 0.16f }
+                                .minByOrNull { it.second }?.first
+                        }'''
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                            val nearEdge = left <= 0.03f || top <= 0.03f || right >= 0.97f || bottom >= 0.97f",
+    "                            lastObjectBox = RectF(left, top, right, bottom)\n                            val wasLost = _state.value.objectDetected == false\n                            if (wasLost && !_state.value.paused) shutter.setPaused(false)\n                            val nearEdge = left <= 0.03f || top <= 0.03f || right >= 0.97f || bottom >= 0.97f"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                            if (missedObjectFrames >= 3) {\n                                selectedObjectTrackingId = null\n                                _state.update",
+    "                            if (missedObjectFrames >= 3) {\n                                selectedObjectTrackingId = null\n                                if (!_state.value.paused) shutter.setPaused(true)\n                                _state.update",
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                        if (missedObjectFrames >= 3) {\n                            selectedObjectTrackingId = null\n                                _state.update",
+    "                        if (missedObjectFrames >= 3) {\n                            selectedObjectTrackingId = null\n                            if (!_state.value.paused) shutter.setPaused(true)\n                                _state.update",
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        selectedObjectTrackingId = null\n        missedObjectFrames = 0",
+    "        selectedObjectTrackingId = null\n        lastObjectBox = null\n        missedObjectFrames = 0"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        if (_state.value.mode != Mode.SMART) return",
+    "        if (_state.value.mode != Mode.SMART) return\n        if (_state.value.objectDetected != true || _state.value.objectNearEdge) return"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        if (liveTarget.objectDetected == false || liveTarget.objectNearEdge) {",
+    "        if (liveTarget.objectDetected != true || liveTarget.objectNearEdge) {"
+)
+
+# Put capture archive import beside model import as a large, persistent action.
+library_path = ROOT / "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryScreen.kt"
+library_text = library_path.read_text()
+visible_import = '''            OutlinedButton(
+                onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Icon(Icons.Outlined.Share, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Импортировать съёмку из ZIP")
+            }
+'''
+library_anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\\n"
+if visible_import not in library_text:
+    if library_anchor not in library_text:
+        raise SystemExit("Visible capture import button anchor missing")
+    library_text = library_text.replace(library_anchor, library_anchor + visible_import, 1)
+library_path.write_text(library_text)
+
+# Remove upstream personal donation/contact details, translate all user-facing
+# help and credit descriptions, and keep legally required upstream attribution.
+translate("app/src/main/res/values/strings_info.xml", {
+    "support_body": "Обратная связь по ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid",
+    "about_body": "ReverseScan 3D — приложение для сканирования предметов и просмотра трёхмерных моделей непосредственно на телефоне. Делайте фотосъёмку объекта, стройте 3D-модель, открывайте STL, OBJ, PLY, 3MF, glTF и GLB. Фотографии и проекты хранятся на устройстве; отправка выполняется только по вашему запросу.",
+    "about_thanks": "Сведения об используемых открытых компонентах и их авторах приведены в разделе «Авторы и компоненты».",
+    "license_copyright": "Исходный проект Strata:3D — David Morales. ReverseScan 3D содержит модификации исходного проекта.",
+    "license_body": "ReverseScan 3D основано на открытом проекте Strata:3D и распространяется с учётом условий GNU AGPL версии 3. Авторские права и уведомления исходного проекта сохранены. Исходный код модификаций ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid. Сведения о сторонних библиотеках и их лицензиях приведены в разделе «Авторы и компоненты» и в уведомлениях.",
+    "help_body": "РАБОТА С 3D-МОДЕЛЯМИ\\n1. На главном экране нажмите «Открыть 3D-модель» и выберите файл в памяти телефона. Также можно открыть модель через меню «Поделиться» или «Открыть с помощью» в файловом менеджере.\\n2. Поддерживаются STL, OBJ, PLY, 3MF, glTF и GLB, а также ZIP-архивы с поддерживаемой моделью.\\n3. Перетаскивайте одним пальцем для вращения, двумя пальцами для перемещения; сведением и разведением пальцев меняйте масштаб.\\n4. Панель видов переключает перспективу, ортографический вид, вид сверху, спереди, сбоку и изометрию. Команда «По размеру» помещает модель целиком в окно.\\n5. Инструменты позволяют измерять расстояния, делать сечение, проверять сетку и сохранять снимок экрана.\\n\\nСЪЁМКА ПРЕДМЕТА\\n1. Откройте раздел «Съёмки» и нажмите «Новая съёмка». Разрешите доступ к камере.\\n2. Поставьте неподвижный предмет в ровно освещённое место. Лучше всего сканируются матовые поверхности с заметной фактурой. Избегайте бликов, стекла, зеркал и однотонных поверхностей.\\n3. Коснитесь предмета на экране, чтобы выбрать его. Дождитесь зелёной рамки отслеживания. Если рамка исчезла или стала оранжевой, верните предмет в центр кадра и дождитесь повторного захвата.\\n4. В режиме «Автосъёмка» медленно обходите предмет по кругу. Делайте небольшие шаги, на мгновение останавливая телефон на каждом новом ракурсе. Не закрывайте предмет рукой и не допускайте его выхода за края кадра. При необходимости переключитесь на ручной режим.\\n5. Сделайте полный круг на уровне середины предмета, затем дополнительные ракурсы сверху и снизу. Старайтесь сохранять перекрытие соседних фотографий. Для большинства предметов рекомендуется не менее 40 фотографий.\\n6. Нажмите «Готово», затем «Сохранить». Съёмка появится в разделе «Мои съёмки». Не удаляйте данные приложения, если хотите сохранить проекты.\\n\\nПОСТРОЕНИЕ МОДЕЛИ\\n1. Откройте сохранённую съёмку и нажмите «Построить 3D-модель». Построение выполняется на телефоне и может занять продолжительное время.\\n2. Сопоставление использует фотографии с разных ракурсов. Если часть кадров не сопоставлена, приложение попробует восстановить последовательную связь между соседними ракурсами. При достаточном количестве сопоставленных кадров построение может продолжиться с частичными данными.\\n3. После завершения откройте модель и проверьте её со всех сторон. Непроснятые участки могут остаться с отверстиями или неполной поверхностью.\\n4. Экспортируйте модель в GLB или OBJ для дальнейшей работы в 3D-редакторе.\\n\\nИМПОРТ И ВОССТАНОВЛЕНИЕ СЪЁМОК\\n1. В разделе «Мои съёмки» нажмите «Импортировать съёмку из ZIP» и выберите ZIP-архив, ранее экспортированный из ReverseScan 3D.\\n2. Импортированная съёмка появится в списке. Её можно открыть, построить модель или продолжить досъёмку.\\n3. Кнопка «Открыть 3D-модель» предназначена для импорта готовых файлов STL, OBJ, PLY, 3MF, glTF и GLB; это отдельная функция от импорта ZIP-съёмки.\\n\\nЕСЛИ ПОСТРОЕНИЕ НЕ УДАЛОСЬ\\n• Мало сопоставленных кадров: проверьте, что соседние фотографии перекрываются, предмет не смещался, а освещение и фактура достаточны.\\n• Предмет потерян при съёмке: коснитесь его повторно и дождитесь рамки отслеживания.\\n• Недостаточно памяти: закройте другие приложения и освободите место на телефоне.\\n• Однотонные, прозрачные и блестящие поверхности могут не содержать признаков, необходимых для фотограмметрии.",
+    "credit_viewer": "основа 3D-просмотрщика",
+    "credit_drako": "декодирование моделей glTF со сжатием Draco",
+    "credit_meshopt": "декодирование моделей glTF со сжатием meshoptimizer",
+    "credit_mve": "импорт фотографий, определение положения камер и очистка построенной модели",
+    "credit_texturing": "перенос цвета и текстуры с фотографий на модель",
+    "credit_mapmap": "выбор фотографий для окраски участков модели",
+    "credit_rayint": "определение видимости участков модели на фотографиях",
+    "credit_openmvs": "расчёт глубины по фотографиям и построение поверхности",
+    "credit_opencv": "обработка изображений в процессе построения модели",
+    "credit_boost": "библиотека базовых компонентов C++ для построителя модели",
+    "credit_cgal": "геометрические алгоритмы построения поверхности",
+    "credit_vcg": "очистка и упрощение построенной поверхности",
+    "credit_nanoflann": "ускоренный поиск ближайших точек",
+    "credit_eigen": "математические операции с матрицами и векторами",
+    "credit_tbb": "параллельное выполнение этапа окраски на нескольких ядрах",
+    "credit_libjpeg": "чтение фотографий",
+    "credit_libpng": "чтение и запись изображений",
+    "credit_llvm_omp": "параллельное выполнение построителя модели",
+    "credit_androidx": "интерфейс приложения, камера и обработка фотографий"
+})
+
+print("Applied save verification, partial SfM recovery, stronger object reacquisition, faster auto shutter, visible capture ZIP import, and Russian app information.")

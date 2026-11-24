@@ -180,7 +180,13 @@ for locale_name in ("en", "de"):
     locale_dir.mkdir(parents=True, exist_ok=True)
     for resource_file in ("strings.xml", "strings_capture.xml", "strings_recon.xml", "strings_info.xml"):
         copyfile(base_values / resource_file, locale_dir / resource_file)
-translate("app/src/main/res/values-en/strings.xml", {"app_name": "ReverseScan 3D"})
+translate("app/src/main/res/values-en/strings.xml", {
+    "app_name": "ReverseScan 3D",
+    "language_title": "App language",
+    "language_russian": "Russian",
+    "language_english": "English",
+    "language_german": "German",
+})
 translate("app/src/main/res/values-en/strings_info.xml", {
     "info_support": "Contact",
     "info_help": "Help",

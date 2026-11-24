@@ -169,6 +169,108 @@ def translate(path, mapping):
             raise SystemExit(f"String {key} appears more than once in {path}")
     p.write_text(s)
 
+
+# Keep a real English resource pack before the default Russian resources are translated.
+# German starts from the English pack, so any not-yet-translated technical term remains
+# readable English rather than unexpectedly falling back to Russian.
+from shutil import copyfile
+base_values = ROOT / "app/src/main/res/values"
+for locale_name in ("en", "de"):
+    locale_dir = ROOT / f"app/src/main/res/values-{locale_name}"
+    locale_dir.mkdir(parents=True, exist_ok=True)
+    for resource_file in ("strings.xml", "strings_capture.xml", "strings_recon.xml", "strings_info.xml"):
+        copyfile(base_values / resource_file, locale_dir / resource_file)
+translate("app/src/main/res/values-en/strings.xml", {"app_name": "ReverseScan 3D"})
+translate("app/src/main/res/values-en/strings_info.xml", {
+    "info_support": "Contact",
+    "info_help": "Help",
+    "info_about": "About ReverseScan 3D",
+    "info_credits": "Components and acknowledgements",
+    "info_license": "Licences",
+    "support_body": "Contact the developer: rb-service@live.de\nSource code and issue tracker: https://github.com/rb777pc-dotcom/ReverseScanAndroid",
+    "about_body": "ReverseScan 3D is an Android application for capturing, building and viewing 3D models.\n\nCAPTURE AND RECONSTRUCTION\n• Capture a stationary object with the phone camera using the automatic or manual shutter.\n• On-screen guidance helps keep the object in frame and collect overlapping viewpoints.\n• Save capture sessions and photos on the device; export or import a capture archive in ZIP format.\n• Reconstruct a 3D model from a set of photographs directly on the phone.\n• Transfer colour and texture from the photographs to the reconstructed model.\n\nMODEL VIEWING AND TOOLS\n• Import STL, OBJ, PLY, 3MF, glTF and GLB models.\n• Rotate, pan and zoom; use perspective or orthographic projection and standard top, front, side and isometric views.\n• Measure the distance between two selected surface points and inspect a section through the model.\n• Inspect model information and analyse mesh defects, including open or non-manifold edges and flipped or degenerate triangles.\n• Save a view snapshot and export the result as GLB or OBJ.\n\nCapture processing and reconstruction run on the device. Results depend on lighting, surface texture and reflectivity, viewpoint overlap and phone performance. The app is not a calibrated measuring instrument and does not guarantee a watertight or print-ready mesh.",
+    "about_thanks": "Developer: Bähr. Copyright © 2026. Contact: rb-service@live.de. Project and source code: https://github.com/rb777pc-dotcom/ReverseScanAndroid.",
+    "plans_title": "Planned for future versions",
+    "plans_body": "The following items are under consideration and are not features of this build:\n• Scale calibration and improved measurement accuracy.\n• Mesh editing tools, including hole filling and geometry repair.\n• Additional exchange formats, including STEP, subject to a full CAD converter.\n• Better reconstruction of difficult, plain and reflective surfaces.\n• Further model analysis and 3D-print preparation tools.\n\nScope and timing may change. Listing an item here does not mean it is already implemented.",
+    "help_body": "1. OPEN OR IMPORT A MODEL\nTap Open 3D model and choose a file in Android's file picker. You can also open a supported file from a file manager using Open with or Share. Supported formats: STL, OBJ, PLY, 3MF, glTF and GLB. A ZIP archive can be opened when it contains a supported model. Recent files are shortcuts, not copies; if the original file has moved or been deleted, select it again.\n\n2. NAVIGATE THE 3D VIEW\n• Drag with one finger to rotate; drag with two fingers to pan; pinch to zoom.\n• Use the view controls for perspective or orthographic projection and top, front, side or isometric views.\n• Fit centres the model in the viewport. Display modes show a solid surface, edges or wireframe. Photo colours are available when the model contains them.\n\n3. MEASURE, SECTION AND CHECK THE MESH\n• Choose Measure and tap two points on the surface. The app reports the distance between the selected points. This is a measurement of model coordinates, not independent physical calibration.\n• Choose Section and move the cutting plane to inspect the inside of the model.\n• Run Mesh check to detect open or non-manifold edges, flipped or degenerate triangles and other geometry issues. The check reports defects; it does not repair them.\n• Snapshot saves an image of the current view. Model information shows file and geometry properties. STL, OBJ and PLY may not specify units, so verify units before relying on dimensions or volume.\n\n4. CAPTURE AN OBJECT\nOpen Captures, choose New capture and grant camera permission. Place a stationary object in even, bright light. Matte surfaces with visible texture work best. Glass, mirrors, shiny metal, transparent and plain surfaces are difficult to reconstruct.\nTap the object in the preview to begin. Smart shutter takes a photo after the phone has moved to a new angle and become steady; Manual shutter takes a photo when you press the shutter button. Walk slowly around the object, keeping it in frame, then capture additional higher and lower viewpoints. Consecutive photos must overlap. Around 40 or more photos is a useful starting point; complex objects may need more.\n\n5. SAVE AND BUILD\nTap Done to save the capture. It appears in My captures. You can rename it or export a ZIP backup. To transfer a capture to another phone, import its ZIP archive from the capture library.\nOpen a saved capture and choose Build 3D model. Reconstruction runs on the phone and may take several minutes. Time depends on photo count, scene complexity and device performance. Keep enough free storage and do not force-stop the app. If box review is available, check that the box encloses the whole object before continuing.\n\n6. REVIEW AND EXPORT\nOpen the completed model in the viewer and inspect every side. Areas without enough viewpoints may contain holes or distortions. GLB can package geometry, colour and textures in one file. OBJ is exported as a ZIP containing the model, materials and texture images. Choose a destination in Android's save dialog.\n\n7. TROUBLESHOOTING\n• Too few photos were aligned: retake the object with more overlap and stronger surface texture.\n• A side is missing: capture additional viewpoints of that area without moving the object during a capture session.\n• Holes remain: add photos of the missing areas and rebuild. Automatic guaranteed hole repair is not included in this version.\n• Not enough memory or storage: close other apps and free device storage."
+})
+translate("app/src/main/res/values-de/strings.xml", {
+    "app_name": "ReverseScan 3D", "open_file": "3D-Modell öffnen", "model_info": "Modellinformationen",
+    "settings": "Einstellungen", "settings_panel_title": "Optionen", "language_title": "App-Sprache",
+    "language_russian": "Russisch", "language_english": "Englisch", "language_german": "Deutsch",
+    "theme_switch_to_dark": "Dunkles Design aktivieren", "theme_switch_to_light": "Helles Design aktivieren",
+    "view_rail": "Ansichten", "view_rail_collapse": "Ansichtsleiste ausblenden", "view_rail_expand": "Ansichtsleiste anzeigen",
+    "view_persp": "Perspektive", "view_ortho": "Orthografisch", "view_top": "Oben", "view_front": "Vorne",
+    "view_side": "Seite", "view_iso": "Isometrisch", "view_fit": "Einpassen", "snapshot_title": "Bildschirmaufnahme",
+    "recent_models": "Zuletzt verwendete Modelle", "recent_view_all": "Alle anzeigen", "recent_files": "Zuletzt verwendete Dateien",
+    "recent_reopen": "Erneut öffnen", "recent_remove": "Aus Liste entfernen", "recent_clear": "Leeren",
+    "recent_empty": "Geöffnete Modelle werden hier angezeigt.", "recent_back": "Zurück",
+    "snapshot_preview": "Vorschau", "snapshot_background": "Hintergrund", "snapshot_transparent": "Transparent",
+    "snapshot_framed": "Mit Rahmen", "snapshot_grid": "Raster", "snapshot_save": "Speichern", "snapshot_share": "Teilen",
+    "snapshot_saved": "Bild gespeichert", "show_grid": "Raster anzeigen", "model_color": "Modellfarbe",
+    "close_model": "Modell schließen", "empty_title": "Kein Modell geladen",
+    "empty_body": "Öffnen Sie eine STL-, OBJ-, PLY-, 3MF-, glTF- oder GLB-Datei von Ihrem Gerät.",
+    "loading": "Wird geladen …", "measure": "Messen", "measure_title": "Messung", "measure_distance": "Abstand",
+    "measure_instruction_p1": "Ersten Punkt antippen", "measure_instruction_p2": "Zweiten Punkt antippen",
+    "measure_clear": "Löschen", "measure_done": "Fertig", "diag_title": "Netzprüfung", "diag_analyze": "Analysieren",
+    "diag_analyzing": "Analyse läuft …", "diag_cancel": "Abbrechen", "diag_no_issues": "Keine Fehler erkannt",
+    "diag_issues_found": "Fehler gefunden", "diag_failed": "Analyse fehlgeschlagen", "diag_retry": "Erneut versuchen",
+    "section": "Schnitt", "section_title": "Schnitt", "section_flip": "Andere Seite anzeigen", "section_close": "Schnitt schließen",
+    "file_location": "Dateispeicherort", "copy_path": "Pfad kopieren", "copy_uri": "URI kopieren",
+    "download_as_new_file": "Als neue Datei speichern", "file_saved": "Gespeichert unter %1$s",
+    "error_saving": "Datei konnte nicht gespeichert werden: %1$s", "view_photo": "Foto",
+    "view_photo_show": "Fotofarben anzeigen", "view_photo_hide": "Einfarbige Darstellung anzeigen"
+})
+translate("app/src/main/res/values-de/strings_capture.xml", {
+    "capture_entry": "Aufnahmen", "capture_object": "Objekt aufnehmen", "captures_title": "Aufnahmen",
+    "capture_new": "Neue Aufnahme", "captures_empty_title": "Erstes Objekt aufnehmen",
+    "capture_untitled": "Aufnahme %1$s", "capture_rename": "Umbenennen", "capture_export": "ZIP exportieren",
+    "capture_delete": "Löschen", "capture_delete_title": "Diese Aufnahme löschen?", "capture_name_hint": "Name",
+    "capture_exporting": "Export läuft %1$d%% …", "capture_exported": "Aufnahme exportiert", "capture_back": "Zurück",
+    "capture_copy": "Kopieren", "capture_copied": "Kopiert", "cancel": "Abbrechen", "save": "Speichern", "close": "Schließen",
+    "capture_permission_title": "Kamerazugriff erforderlich", "capture_permission_body": "ReverseScan 3D verwendet die Kamera nur während einer Aufnahme. Fotos werden auf diesem Gerät gespeichert.",
+    "capture_permission_allow": "Kamera erlauben", "capture_permission_settings": "Einstellungen öffnen",
+    "capture_done": "Fertig", "capture_leave_title": "Aufnahme behalten?", "capture_keep": "Behalten",
+    "capture_discard": "Verwerfen", "capture_saved": "Aufnahme gespeichert", "capture_summary_photos": "Fotos",
+    "capture_summary_covered": "Abdeckung", "capture_summary_size": "Speicher", "capture_tap_object": "Tippen Sie auf das Objekt, um zu beginnen",
+    "capture_keep_moving": "Langsam weiter um das Objekt gehen", "capture_hold_steady": "Telefon ruhig halten",
+    "capture_saving_photo": "Foto wird gespeichert …", "capture_manual_hint": "Für jedes Foto den Auslöser drücken",
+    "capture_mode_smart": "Automatisch", "capture_mode_manual": "Manuell", "capture_pause_short": "Pause",
+    "capture_resume": "Fortsetzen", "capture_shutter_desc": "Foto aufnehmen", "capture_shutter_setting": "Auslöser"
+})
+translate("app/src/main/res/values-de/strings_recon.xml", {
+    "recon_step": "Schritt %1$d von %2$d · %3$s", "recon_elapsed": "Bisher %1$s",
+    "recon_leave_hint": "Sie können die App verlassen. Der Fortschritt wird auch in der Benachrichtigung angezeigt.",
+    "recon_ready": "Modell fertig", "recon_ready_time": "Erstellt in %1$s", "recon_open": "Im Viewer öffnen",
+    "recon_build_again": "Erneut erstellen", "recon_failed": "Modell konnte nicht erstellt werden",
+    "recon_try_again": "Erneut versuchen", "recon_cancelled_note": "Der letzte Vorgang wurde abgebrochen.",
+    "recon_err_storage": "Nicht genügend freier Speicher. Geben Sie Speicherplatz frei und versuchen Sie es erneut.",
+    "recon_err_memory": "Der Arbeitsspeicher war knapp; der Vorgang wurde beendet. Schließen Sie andere Apps und versuchen Sie es erneut.",
+    "recon_err_placed": "Zu wenige Fotos konnten zugeordnet werden. Nehmen Sie das Objekt erneut langsam von allen Seiten auf.",
+    "recon_err_no_object": "Die Fotos zeigen nicht durchgehend dasselbe Objekt. Nehmen Sie das Objekt erneut auf und halten Sie es mittig im Bild.",
+    "recon_err_tool": "Beim Erstellen des Modells ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "recon_review_title": "Begrenzungsrahmen prüfen", "recon_review_body": "%1$d von %2$d Fotos wurden zugeordnet. Prüfen Sie den Rahmen um das Objekt.",
+    "recon_review_reset": "Zurücksetzen", "size_row_label": "Reale Größe", "size_add_optional": "Hinzufügen (optional)",
+    "size_title_height": "Wie hoch ist das Objekt?", "size_title_width": "Wie breit ist das Objekt?",
+    "size_skip": "Überspringen", "size_save": "Speichern", "size_error_number": "Geben Sie eine Zahl ein, z. B. 25 oder 12,5",
+    "size_not_set": "Größe nicht festgelegt", "size_add": "Größe hinzufügen", "size_edit": "Bearbeiten",
+    "export_model": "Modell exportieren", "export_glb_body": "Eine Datei mit eingebetteten Farben. Für die meisten 3D-Apps und Viewer geeignet.",
+    "export_obj_body": "Modell, Materialien und Texturbilder, z. B. für Blender.", "export_save": "Speichern",
+    "export_share": "Teilen", "export_writing": "%1$s wird geschrieben … %2$d%%", "export_saved": "Gespeichert",
+    "export_open": "Öffnen", "export_failed": "Export nicht abgeschlossen. Versuchen Sie es erneut."
+})
+translate("app/src/main/res/values-de/strings_info.xml", {
+    "info_support": "Kontakt", "info_help": "Hilfe", "info_about": "Über ReverseScan 3D",
+    "info_credits": "Komponenten und Danksagungen", "info_license": "Lizenzen", "info_close": "Schließen",
+    "info_version": "%1$s (Build %2$d)",
+    "support_body": "Kontakt zum Entwickler: rb-service@live.de\nQuellcode und Fehlerberichte: https://github.com/rb777pc-dotcom/ReverseScanAndroid",
+    "about_body": "ReverseScan 3D ist eine Android-App zum Aufnehmen, Erstellen und Anzeigen dreidimensionaler Modelle.\n\nAUFNAHME UND REKONSTRUKTION\n• Aufnahme eines unbeweglichen Objekts mit automatischem oder manuellem Kameraauslöser.\n• Bildschirmanleitungen helfen, das Objekt im Bild zu halten und überlappende Blickwinkel aufzunehmen.\n• Aufnahmesitzungen und Fotos auf dem Gerät speichern; ZIP-Archive exportieren und importieren.\n• 3D-Modelle direkt auf dem Telefon aus einer Fotoserie rekonstruieren.\n• Farbe und Textur aus den Fotos auf das Modell übertragen.\n\n3D-ANSICHT UND WERKZEUGE\n• STL, OBJ, PLY, 3MF, glTF und GLB importieren.\n• Modelle drehen, verschieben und zoomen; Perspektiv- und Orthogonalansicht sowie Standardansichten nutzen.\n• Abstände zwischen zwei Oberflächenpunkten messen und einen Schnitt durch das Modell anzeigen.\n• Modellinformationen anzeigen und Netzfehler wie offene oder nicht-mannigfaltige Kanten sowie fehlerhafte Dreiecke analysieren.\n• Ansichten speichern und Modelle als GLB oder OBJ exportieren.\n\nAufnahme und Rekonstruktion erfolgen auf dem Gerät. Das Ergebnis hängt von Beleuchtung, Oberflächenstruktur, Reflexionen, Bildüberlappung und Geräteleistung ab. Die App ist kein kalibriertes Messgerät und garantiert kein geschlossenes oder druckfertiges Netz.",
+    "about_thanks": "Entwickler: Bähr. Copyright © 2026. Kontakt: rb-service@live.de. Projekt und Quellcode: https://github.com/rb777pc-dotcom/ReverseScanAndroid.",
+    "plans_title": "Für zukünftige Versionen geplant",
+    "plans_body": "Die folgenden Punkte werden geprüft und sind in dieser Version noch nicht verfügbar:\n• Maßstabskalibrierung und höhere Messgenauigkeit.\n• Werkzeuge zur Netzbearbeitung, zum Schließen von Löchern und zur Geometriekorrektur.\n• Weitere Austauschformate, einschließlich STEP, nach Entwicklung eines vollständigen CAD-Konverters.\n• Verbesserte Rekonstruktion schwieriger, einfarbiger und reflektierender Oberflächen.\n• Weitere Analysewerkzeuge und Funktionen zur Vorbereitung auf den 3D-Druck.\n\nUmfang und Zeitplan können sich ändern. Ein Eintrag bedeutet nicht, dass die Funktion bereits implementiert ist.",
+    "help_body": "1. MODELL ÖFFNEN ODER IMPORTIEREN\nTippen Sie auf 3D-Modell öffnen und wählen Sie eine Datei im Android-Dateiauswahldialog. Unterstützt werden STL, OBJ, PLY, 3MF, glTF und GLB. ZIP-Archive können geöffnet werden, wenn sie ein unterstütztes Modell enthalten.\n\n2. 3D-ANSICHT STEUERN\n• Ein Finger dreht das Modell; zwei Finger verschieben es; Zusammenziehen und Spreizen ändert den Zoom.\n• Die Ansichtsleiste bietet Perspektive und Orthogonalprojektion sowie Ansichten von oben, vorne, seitlich und isometrisch.\n• Einpassen zentriert das Modell. Die Darstellungsmodi zeigen Oberfläche, Kanten oder Drahtmodell.\n\n3. MESSEN, SCHNEIDEN UND PRÜFEN\n• Wählen Sie Messen und tippen Sie zwei Punkte auf der Oberfläche an. Der Abstand wird anhand der Modellkoordinaten berechnet und ist keine unabhängige physische Kalibrierung.\n• Mit Schnitt und der verschiebbaren Ebene können Sie das Modellinnere untersuchen.\n• Die Netzprüfung erkennt unter anderem offene und nicht-mannigfaltige Kanten sowie fehlerhafte Dreiecke. Sie meldet Probleme, repariert sie aber nicht automatisch.\n\n4. OBJEKT AUFNEHMEN\nÖffnen Sie Aufnahmen, wählen Sie Neue Aufnahme und erlauben Sie den Kamerazugriff. Verwenden Sie gleichmäßiges Licht und matte, strukturierte Oberflächen. Glas, Spiegel, glänzendes Metall und einfarbige Flächen sind schwierig zu rekonstruieren. Tippen Sie auf das Objekt, um zu starten. Gehen Sie langsam darum herum und halten Sie es im Bild. Die Fotos müssen sich überlappen. Etwa 40 oder mehr Fotos sind ein guter Ausgangspunkt.\n\n5. SPEICHERN UND MODELL ERSTELLEN\nTippen Sie auf Fertig. Die Aufnahme erscheint unter Meine Aufnahmen. Sie können sie umbenennen oder als ZIP sichern. Öffnen Sie die Aufnahme und wählen Sie 3D-Modell erstellen. Die Berechnung erfolgt auf dem Telefon und kann mehrere Minuten dauern. Sorgen Sie für ausreichend freien Speicher.\n\n6. ERGEBNIS PRÜFEN UND EXPORTIEREN\nÖffnen Sie das fertige Modell und prüfen Sie alle Seiten. Bereiche mit zu wenigen Fotos können Löcher oder Verzerrungen enthalten. GLB kann Geometrie, Farben und Texturen in einer Datei speichern. OBJ wird als ZIP mit Modell, Materialien und Texturen exportiert.\n\n7. FEHLERBEHEBUNG\n• Zu wenige Fotos zugeordnet: mit mehr Überlappung und besserer Oberflächenstruktur erneut aufnehmen.\n• Eine Seite fehlt: zusätzliche Blickwinkel aufnehmen, ohne das Objekt während einer Sitzung zu bewegen.\n• Löcher im Modell: fehlende Bereiche fotografieren und erneut rekonstruieren. Eine garantierte automatische Lochfüllung ist in dieser Version nicht enthalten.\n• Zu wenig Speicher: andere Apps schließen und Gerätespeicher freigeben."
+})
+
 translate("app/src/main/res/values/strings_capture.xml", capture_ru)
 translate("app/src/main/res/values/strings_recon.xml", recon_ru)
 

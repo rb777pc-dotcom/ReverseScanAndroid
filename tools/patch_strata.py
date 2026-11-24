@@ -1836,7 +1836,7 @@ elif version_new not in info_source:
 # Remove upstream component author list from the app-author screen source itself.
 credits_start = info_source.find("private val CREDITS = listOf(")
 if credits_start >= 0:
-    credits_end = info_source.find("\\n)", credits_start)
+    credits_end = info_source.find("\n)", credits_start)
     if credits_end < 0:
         raise SystemExit("Credits list end missing; refusing partial branding patch")
     info_source = info_source[:credits_start] + "private val CREDITS = emptyList<Credit>()" + info_source[credits_end + 2:]

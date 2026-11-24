@@ -62,8 +62,8 @@ jobs:
       - name: Apply scanner reliability and Russian UI fixes
         run: |
           python3 tools/patch_strata.py
-          # Remove every unsupported fractional letterSpacing argument in the patched viewer.
-          sed -i '/letterSpacing = .*\.sp,/d' strata/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
+          # Remove optional letterSpacing arguments without deleting their Compose Text calls.
+          sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' strata/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
 
       - name: Adapt upstream native scripts for Linux runner
         working-directory: strata

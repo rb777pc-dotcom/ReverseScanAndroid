@@ -1458,22 +1458,7 @@ replace_once(
                         }''',
     '''                        val lockedId = selectedObjectTrackingId
                         val previousBox = lastObjectBox
-                        val nearestPrevious = previousBox?.let { previous ->
-                            objects.mapNotNull { obj ->
-                                val b = obj.boundingBox
-                                val left = b.left.toFloat() / rotatedWidth
-                                val top = b.top.toFloat() / rotatedHeight
-                                val right = b.right.toFloat() / rotatedWidth
-                                val bottom = b.bottom.toFloat() / rotatedHeight
-                                val dx = (left + right) / 2f - previous.centerX()
-                                val dy = (top + bottom) / 2f - previous.centerY()
-                                val distance2 = dx * dx + dy * dy
-                                val area = maxOf(0.0001f, (right - left) * (bottom - top))
-                                val oldArea = maxOf(0.0001f, previous.width() * previous.height())
-                                val ratio = area / oldArea
-                                if (distance2 <= 0.22f * 0.22f && ratio in 0.25f..4f) obj to distance2 else null
-                            }.minByOrNull { it.second }?.first
-                        }
+                        val previousBox = lastObjectBox
                         val target = when {
                             selectedTap == null -> objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
                             lockedId != null -> objects.firstOrNull { it.trackingId == lockedId } ?: nearestPrevious
@@ -2526,7 +2511,7 @@ translate("app/src/main/res/values-de/strings_capture.xml", {
     "capture_target_edge_label": "OBJEKT AM RAND — ZUR MITTE BEWEGEN",
     "capture_target_detected_label": "OBJEKT IM BILD — WIRD VERFOLGT",
     "capture_target_lost_label": "OBJEKT VERLOREN — KAMERA DARAUF RICHTEN",
-    "capture_target_wait_label": "TIPpen SIE AUF DAS OBJEKT IM BILD"
+    "capture_target_wait_label": "TIPPE AUF DAS OBJEKT IM BILD"
 })
 
 # Complete the remaining German viewer, capture, information and reconstruction strings.
@@ -2613,7 +2598,7 @@ translate("app/src/main/res/values-de/strings_capture.xml", {
     "capture_summary_missing_low": "Fehlen: einige Blickwinkel von unten.",
     "capture_summary_missing_mid": "Fehlen: einige Blickwinkel von oben.",
     "capture_summary_complete": "Alle Seiten wurden erfasst.",
-    "capture_summary_next": "Die Rekonstruktion folgt in einem späteren Update.",
+    "capture_summary_next": "Sie können jetzt mit der 3D-Modellerstellung beginnen.",
     "capture_photo_failed": "Das letzte Foto konnte nicht gespeichert werden. Die automatische Aufnahme wurde pausiert.",
     "capture_no_sensors": "Dieses Telefon hat keine Bewegungssensoren für die automatische Aufnahme. Verwenden Sie den manuellen Auslöser.",
     "capture_count": "%1$d Fotos · empfohlen: mindestens 40",

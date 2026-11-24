@@ -2670,7 +2670,7 @@ replace_once(
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    "        if (synchronized(lock) { photoCount > 0 || finishing }) return",
+    "        if (synchronized(lock) { (photoCount > 0 && resumeCaptureId == null) || finishing }) return",
     "        if (synchronized(lock) { finishing }) return"
 )
 replace_once(

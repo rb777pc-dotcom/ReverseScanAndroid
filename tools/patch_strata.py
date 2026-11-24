@@ -1795,19 +1795,30 @@ replace_once(
 
 # texrecon may emit JPEG texture images. GLB must embed them with the matching MIME
 # type; declaring JPEG bytes as image/png makes some viewers discard the photo colour.
-replace_once(
-    "app/src/main/java/app/strata3d/capture/recon/ModelExport.kt",
-    '        val imageViews = imageList.map { view(images.getValue(it), null) }',
-    '''        val imageViews = imageList.map { view(images.getValue(it), null) }
+model_export = ROOT / "app/src/main/java/app/strata3d/capture/recon/ModelExport.kt"
+model_export_text = model_export.read_text()
+image_anchor = "        val imageViews = imageList.map { view(images.getValue(it), null) }"
+if image_anchor not in model_export_text:
+    raise SystemExit("GLB image view anchor missing; refusing unsafe texture patch")
+if "val imageMimeTypes = imageList.map" not in model_export_text:
+    model_export_text = model_export_text.replace(
+        image_anchor,
+        image_anchor + """
         val imageMimeTypes = imageList.map { name ->
             when (File(name).extension.lowercase(Locale.ROOT)) {
                 "jpg", "jpeg" -> "image/jpeg"
                 else -> "image/png"
             }
-        }'''
+        }""",
+        1,
+    )
+image_json_line = next(
+    (line for line in model_export_text.splitlines() if "imageViews.joinToString" in line and "image/png" in line),
+    None,
 )
-replace_once(
-    "app/src/main/java/app/strata3d/capture/recon/ModelExport.kt",
-    '''                append("\\\"images\\\":[${imageViews.joinToString(",") { "{\\\"bufferView\\\":$it,\\\"mimeType\\\":\\\"image/png\\\"}" }}],")''',
-    '''                append("\\\"images\\\":[${imageViews.indices.joinToString(",") { i -> "{\\\"bufferView\\\":${imageViews[i]},\\\"mimeType\\\":\\\"${imageMimeTypes[i]}\\\"}" }}],")'''
-)
+if image_json_line is not None:
+    new_image_json_line = r'''                append("\"images\":[${imageViews.indices.joinToString(",") { i -> "{\"bufferView\":${imageViews[i]},\"mimeType\":\"${imageMimeTypes[i]}\"}" }}],")'''
+    model_export_text = model_export_text.replace(image_json_line, new_image_json_line, 1)
+elif "imageMimeTypes[i]" not in model_export_text:
+    raise SystemExit("GLB image JSON line missing; refusing unsafe texture patch")
+model_export.write_text(model_export_text)

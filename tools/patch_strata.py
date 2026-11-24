@@ -2443,19 +2443,6 @@ replace_once(
                             }
                         }'''
 )
-# Keep the selected tracking ID through short detector dropouts. It is updated only
-# when the same ID returns or a candidate passes the strict previous-box continuity gate.
-replace_once(
-    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    "                            if (missedObjectFrames >= 3) {\n                                selectedObjectTrackingId = null\n                                if (!_state.value.paused) shutter.setPaused(true)",
-    "                            if (missedObjectFrames >= 3) {\n                                if (!_state.value.paused) shutter.setPaused(true)"
-)
-replace_once(
-    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
-    "                        if (missedObjectFrames >= 3) {\n                            selectedObjectTrackingId = null\n                            if (!_state.value.paused) shutter.setPaused(true)",
-    "                        if (missedObjectFrames >= 3) {\n                            if (!_state.value.paused) shutter.setPaused(true)"
-)
-
 # Localize the live target status and target-loss notices in all three app languages.
 replace_once(
     "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",

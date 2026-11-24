@@ -1458,16 +1458,17 @@ replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
 
 
 # ReverseScan 3D visual refresh.
-# Do not consume the damaged legacy Base64 logo. Use a typographic wordmark in-app
-# until the original RB artwork is restored from the user's source image.
+# The old embedded Base64 logo is known to be truncated. Do not display or package it.
+# Keep the in-app identity typographic until the original RB artwork is restored.
+
 def replace_file_text(relative_path, old, new):
     p = ROOT / relative_path
     s = p.read_text()
     if old not in s:
-        raise SystemExit(f"Expected design anchor not found in {relative_path}: {old[:100]!r}")
+        raise SystemExit(f"Expected source block not found in {relative_path}: {old[:100]!r}")
     p.write_text(s.replace(old, new, 1))
 
-# Application identity and Russian home-screen labels.
+# Russian product identity and home-screen copy.
 strings = ROOT / "app/src/main/res/values/strings.xml"
 st = strings.read_text()
 translations = {
@@ -1493,7 +1494,7 @@ if 'name="capture_library_import"' not in st:
     st = st.replace("</resources>", '    <string name="capture_library_import">Мои съёмки и импорт ZIP</string>\n</resources>')
 strings.write_text(st)
 
-# Replace the upstream home screen with a compact, card-based ReverseScan dashboard.
+# Purpose-built ReverseScan home dashboard with three obvious entry points.
 viewer_path = "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
 viewer = ROOT / viewer_path
 vs = viewer.read_text()
@@ -1564,41 +1565,16 @@ private fun EmptyState(
                             .background(BrandCyan.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            Icons.Outlined.ViewInAr,
-                            contentDescription = null,
-                            tint = BrandCyan,
-                            modifier = Modifier.size(30.dp),
-                        )
+                        Icon(Icons.Outlined.ViewInAr, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(30.dp))
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            "REVERSCAN 3D",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = BrandCyan,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.6.sp,
-                        )
-                        Text(
-                            "СКАНИРОВАНИЕ · МОДЕЛИ · ЭКСПОРТ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 0.5.sp,
-                        )
+                        Text("REVERSCAN 3D", style = MaterialTheme.typography.labelMedium, color = BrandCyan, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+                        Text("СКАНИРОВАНИЕ · МОДЕЛИ · ЭКСПОРТ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.5.sp)
                     }
                 }
-                Text(
-                    text = stringResource(R.string.empty_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = stringResource(R.string.empty_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(stringResource(R.string.empty_title), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.empty_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(2.dp))
                 Button(
                     onClick = onCapture,
@@ -1634,13 +1610,15 @@ private fun EmptyState(
         }
     }
 }"""
-if(!vs.includes(old_empty)) throw new Error("Home screen EmptyState source differs; stopped without partial write");
-vs=vs.replace(old_empty,new_empty);
-const old_call='intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, modifier = m) },';
-const new_call='intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, onLibrary = { onOpenCapture(false) }, modifier = m) },';
-if(!vs.includes(old_call)) throw new Error("EmptyState callsite missing");
-vs=vs.replace(old_call,new_call);
-const old_title="""                            Row(verticalAlignment = Alignment.CenterVertically) {
+if old_empty not in vs:
+    raise SystemExit("Home screen EmptyState source differs; refusing partial patch")
+vs = vs.replace(old_empty, new_empty, 1)
+old_call = 'intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, modifier = m) },'
+new_call = 'intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, onLibrary = { onOpenCapture(false) }, modifier = m) },'
+if old_call not in vs:
+    raise SystemExit("EmptyState callsite missing; refusing partial patch")
+vs = vs.replace(old_call, new_call, 1)
+old_title = """                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 StrataLogo(Modifier.size(width = 36.dp, height = 34.dp))
                                 Spacer(Modifier.width(12.dp))
                                 Text(
@@ -1648,77 +1626,76 @@ const old_title="""                            Row(verticalAlignment = Alignment
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                            }""";
-const new_title="""                            Text(
+                            }"""
+new_title = """                            Text(
                                 text = model?.fileName ?: stringResource(R.string.app_name),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.15.sp,
-                            )""";
-if(!vs.includes(old_title)) throw new Error("Top bar title source differs");
-vs=vs.replace(old_title,new_title);
-viewer.write_text(vs);
+                            )"""
+if old_title not in vs:
+    raise SystemExit("Top bar title source differs; refusing partial patch")
+vs = vs.replace(old_title, new_title, 1)
+viewer.write_text(vs)
 
-# Brand palette: graphite/navy surfaces with electric-blue controls and cyan highlights.
+# Premium navy / electric-blue palette for both the viewer and scanner.
 theme_path = ROOT / "app/src/main/java/app/strata3d/ui/theme/Theme.kt"
 theme = theme_path.read_text()
-const replacements=[
-["Color(0xFF01B2C6)","Color(0xFF2F80FF)"],
-["Color(0xFF00252A)","Color(0xFF071426)"],
-["Color(0xFFB9EEF5)","Color(0xFFDCEBFF)"],
-["Color(0xFF00363D)","Color(0xFF102A4D)"],
-["Color(0xFFD2F3F7)","Color(0xFFE6F0FF)"],
-["Color(0xFF007C8A)","Color(0xFF1762C4)"],
-["Color(0xFF7FE5F2)","Color(0xFF8CB8FF)"],
-["Color(0xFFECEFF3)","Color(0xFFF2F5FA)"],
-["Color(0xFF191C1D)","Color(0xFF101827)"],
-["Color(0xFFFFFFFF)","Color(0xFFFFFFFF)"],
-["Color(0xFFDBE4E6)","Color(0xFFE3EAF3)"],
-["Color(0xFF3F484A)","Color(0xFF42516A)"],
-["Color(0xFFF7F9FA)","Color(0xFFF8FAFD)"],
-["Color(0xFFF1F3F5)","Color(0xFFF1F5FA)"],
-["Color(0xFFEBEEF0)","Color(0xFFEAF0F7)"],
-["Color(0xFFE5E8EA)","Color(0xFFE2EAF4)"],
-["Color(0xFF6F797A)","Color(0xFF6D7C91)"],
-["Color(0xFFBFC8CA)","Color(0xFFCBD6E5)"],
-["Color(0xFF004E57)","Color(0xFF163D76)"],
-["Color(0xFFB9F3FA)","Color(0xFFDCEBFF)"],
-["Color(0xFFB1CBD0)","Color(0xFFB7C9E2)"],
-["Color(0xFF1C3438)","Color(0xFF13243D)"],
-["Color(0xFF0F4A52)","Color(0xFF17345A)"],
-["Color(0xFFC3F4FA)","Color(0xFFD9E8FF)"],
-["Color(0xFF1C1D21)","Color(0xFF080E1A)"],
-["Color(0xFFE1E3E3)","Color(0xFFEAF1FC)"],
-["Color(0xFF26282C)","Color(0xFF111C2E)"],
-["Color(0xFF17181B)","Color(0xFF070D18)"],
-["Color(0xFF1F2124)","Color(0xFF0C1524)"],
-["Color(0xFF232528)","Color(0xFF111D30)"],
-["Color(0xFF2D2F33)","Color(0xFF17253B)"],
-["Color(0xFF383A3E)","Color(0xFF1D2D46)"],
-["Color(0xFF899294)","Color(0xFF7386A3)"],
-];
-for a, b in replacements:
-    theme = theme.replace(a, b)
+replacements = [
+    ("Color(0xFF01B2C6)", "Color(0xFF2F80FF)"),
+    ("Color(0xFF00252A)", "Color(0xFF071426)"),
+    ("Color(0xFFB9EEF5)", "Color(0xFFDCEBFF)"),
+    ("Color(0xFF00363D)", "Color(0xFF102A4D)"),
+    ("Color(0xFFD2F3F7)", "Color(0xFFE6F0FF)"),
+    ("Color(0xFF007C8A)", "Color(0xFF1762C4)"),
+    ("Color(0xFF7FE5F2)", "Color(0xFF8CB8FF)"),
+    ("Color(0xFFECEFF3)", "Color(0xFFF2F5FA)"),
+    ("Color(0xFF191C1D)", "Color(0xFF101827)"),
+    ("Color(0xFFDBE4E6)", "Color(0xFFE3EAF3)"),
+    ("Color(0xFF3F484A)", "Color(0xFF42516A)"),
+    ("Color(0xFFF7F9FA)", "Color(0xFFF8FAFD)"),
+    ("Color(0xFFF1F3F5)", "Color(0xFFF1F5FA)"),
+    ("Color(0xFFEBEEF0)", "Color(0xFFEAF0F7)"),
+    ("Color(0xFFE5E8EA)", "Color(0xFFE2EAF4)"),
+    ("Color(0xFF6F797A)", "Color(0xFF6D7C91)"),
+    ("Color(0xFFBFC8CA)", "Color(0xFFCBD6E5)"),
+    ("Color(0xFF004E57)", "Color(0xFF163D76)"),
+    ("Color(0xFFB9F3FA)", "Color(0xFFDCEBFF)"),
+    ("Color(0xFFB1CBD0)", "Color(0xFFB7C9E2)"),
+    ("Color(0xFF1C3438)", "Color(0xFF13243D)"),
+    ("Color(0xFF0F4A52)", "Color(0xFF17345A)"),
+    ("Color(0xFFC3F4FA)", "Color(0xFFD9E8FF)"),
+    ("Color(0xFF1C1D21)", "Color(0xFF080E1A)"),
+    ("Color(0xFFE1E3E3)", "Color(0xFFEAF1FC)"),
+    ("Color(0xFF26282C)", "Color(0xFF111C2E)"),
+    ("Color(0xFF17181B)", "Color(0xFF070D18)"),
+    ("Color(0xFF1F2124)", "Color(0xFF0C1524)"),
+    ("Color(0xFF232528)", "Color(0xFF111D30)"),
+    ("Color(0xFF2D2F33)", "Color(0xFF17253B)"),
+    ("Color(0xFF383A3E)", "Color(0xFF1D2D46)"),
+    ("Color(0xFF899294)", "Color(0xFF7386A3)"),
+]
+for old, new in replacements:
+    theme = theme.replace(old, new)
 theme_path.write_text(theme)
 
-# Dark system bars and launcher background; remove the malformed old image from build inputs.
 colors_path = ROOT / "app/src/main/res/values/colors.xml"
 if colors_path.exists():
-    c = colors_path.read_text().replace("#ECEFF3", "#080E1A").replace("#1C1D21", "#080E1A").replace("#FFFFFF", "#080E1A")
-    colors_path.write_text(c)
+    colors = colors_path.read_text().replace("#ECEFF3", "#080E1A").replace("#1C1D21", "#080E1A").replace("#FFFFFF", "#080E1A")
+    colors_path.write_text(colors)
 
+# A restrained temporary scan-frame launcher glyph; the official RB emblem is not fabricated.
 manifest = ROOT / "app/src/main/AndroidManifest.xml"
-mt = manifest.read_text()
-mt = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', mt, count=1)
-if "android:roundIcon=" not in mt:
-    mt = mt.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"', 1)
-manifest.write_text(mt)
+manifest_text = manifest.read_text()
+manifest_text = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', manifest_text, count=1)
+if "android:roundIcon=" not in manifest_text:
+    manifest_text = manifest_text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"', 1)
+manifest.write_text(manifest_text)
 
 res = ROOT / "app/src/main/res"
 (res / "mipmap-anydpi-v26").mkdir(parents=True, exist_ok=True)
 (res / "drawable").mkdir(parents=True, exist_ok=True)
-(res / "values").mkdir(parents=True, exist_ok=True)
 (res / "values/colors_brand.xml").write_text("""<resources>
     <color name="brand_night">#080E1A</color>
 </resources>
@@ -1740,4 +1717,4 @@ res = ROOT / "app/src/main/res"
     <monochrome android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
 """)
-print("Applied ReverseScan 3D dashboard, Russian labels, blue/navy theme and removed the broken legacy logo from the UI pipeline.");
+print("Applied ReverseScan dashboard, Russian labels, navy/electric-blue theme, and removed the damaged legacy logo dependency.")

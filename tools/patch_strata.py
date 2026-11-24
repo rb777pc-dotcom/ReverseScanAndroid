@@ -1455,3 +1455,123 @@ replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
 
 
 # Rebuild the corrected source patch set.
+
+
+# ReverseScan brand identity and a useful start screen. These edits are applied to
+# the actual upstream app source before Gradle builds the APK.
+import base64
+brand_source = Path(__file__).resolve().parent.parent / "assets/reversescan_icon.webp.b64"
+if not brand_source.is_file():
+    raise SystemExit("ReverseScan brand asset is missing")
+brand_bytes = base64.b64decode(brand_source.read_text().strip(), validate=True)
+if len(brand_bytes) < 1000:
+    raise SystemExit("ReverseScan brand asset is incomplete")
+res = ROOT / "app/src/main/res"
+(res / "drawable-nodpi").mkdir(parents=True, exist_ok=True)
+(res / "mipmap-nodpi").mkdir(parents=True, exist_ok=True)
+(res / "drawable-nodpi/reversescan_brand.webp").write_bytes(brand_bytes)
+(res / "mipmap-nodpi/ic_launcher.webp").write_bytes(brand_bytes)
+
+manifest = ROOT / "app/src/main/AndroidManifest.xml"
+manifest_text = manifest.read_text()
+manifest_text = manifest_text.replace(
+    '<application',
+    '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"',
+    1
+)
+manifest.write_text(manifest_text)
+
+# Replace the upstream viewer glyph with the supplied RB ReverseScan emblem.
+viewer = ROOT / "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
+viewer_text = viewer.read_text()
+viewer_text = viewer_text.replace(
+    'StrataLogo(Modifier.size(width = 36.dp, height = 34.dp))',
+    'Image(painter = painterResource(R.drawable.reversescan_brand), contentDescription = stringResource(R.string.app_name), modifier = Modifier.size(38.dp))',
+    1
+)
+# The same brand mark is visible on the empty start page.
+viewer_text = viewer_text.replace(
+    'private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, modifier: Modifier = Modifier) {',
+    'private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, onLibrary: () -> Unit, modifier: Modifier = Modifier) {',
+    1
+)
+viewer_text = viewer_text.replace(
+    'intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, modifier = m) },',
+    'intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, onLibrary = { onOpenCapture(false) }, modifier = m) },',
+    1
+)
+viewer_text = viewer_text.replace(
+    '''    ) {
+        Text(
+            text = stringResource(R.string.empty_title),''',
+    '''    ) {
+        Image(
+            painter = painterResource(R.drawable.reversescan_brand),
+            contentDescription = stringResource(R.string.app_name),
+            modifier = Modifier.size(148.dp),
+        )
+        Text(
+            text = stringResource(R.string.empty_title),''',
+    1
+)
+viewer_text = viewer_text.replace(
+    '''        OutlinedButton(
+            onClick = onCapture,''',
+    '''        OutlinedButton(
+            onClick = onLibrary,
+            border = BorderStroke(1.dp, BrandCyan),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandCyan),
+        ) {
+            Icon(Icons.Outlined.History, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.capture_library_import))
+        }
+        OutlinedButton(
+            onClick = onCapture,''',
+    1
+)
+if 'onLibrary: () -> Unit' not in viewer_text or 'capture_library_import' not in viewer_text:
+    raise SystemExit("Could not apply the ReverseScan home screen actions safely")
+viewer.write_text(viewer_text)
+
+strings = ROOT / "app/src/main/res/values/strings.xml"
+st = strings.read_text()
+translations = {
+    'app_name': 'ReverseScan 3D',
+    'open_file': 'Открыть 3D-модель',
+    'model_info': 'Информация о модели',
+    'settings': 'Настройки',
+    'settings_panel_title': 'Меню ReverseScan',
+    'recent_models': 'Недавние модели',
+    'recent_files': 'Мои 3D-модели',
+    'recent_empty': 'Открытые модели появятся здесь.',
+    'empty_title': 'ReverseScan 3D',
+    'empty_body': 'Сканируйте предметы, создавайте цветные 3D-модели или открывайте готовые файлы STL, OBJ, PLY, 3MF, glTF и GLB.',
+    'capture_object': 'Новая съёмка',
+    'capture_entry': 'Мои съёмки',
+    'close_model': 'Закрыть модель',
+    'recent_back': 'Назад',
+}
+for key, value in translations.items():
+    pattern = rf'(<string name="{re.escape(key)}">).*?(</string>)'
+    st, n = re.subn(pattern, lambda m: m.group(1) + value + m.group(2), st, count=1, flags=re.S)
+    if n == 0:
+        if key == 'capture_library_import':
+            st += '\n    <string name="capture_library_import">Мои съёмки и импорт ZIP</string>\n'
+        else:
+            raise SystemExit(f"Required string not found: {key}")
+if 'name="capture_library_import"' not in st:
+    st = st.replace('</resources>', '    <string name="capture_library_import">Мои съёмки и импорт ZIP</string>\n</resources>')
+strings.write_text(st)
+
+# Keep the app consistently dark and use the electric-blue identity in system bars.
+themes = ROOT / "app/src/main/res/values/themes.xml"
+if themes.exists():
+    th = themes.read_text().replace('Theme.Strata', 'Theme.ReverseScan')
+    themes.write_text(th)
+colors = ROOT / "app/src/main/res/values/colors.xml"
+if colors.exists():
+    col = colors.read_text().replace('#ECEFF3', '#080D19').replace('#1C1D21', '#080D19').replace('#FFFFFF', '#080D19')
+    colors.write_text(col)
+
+print("Applied ReverseScan RB branding, launcher icon, Russian start screen and direct access to captures/import.")

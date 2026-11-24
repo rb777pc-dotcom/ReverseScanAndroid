@@ -1846,9 +1846,9 @@ info_path.write_text(info_source)
 # Visible app authorship is Richard Bähr. Upstream and library legal notices remain
 # in the dedicated full licence / third-party notices documents, not as app authors.
 translate("app/src/main/res/values/strings_info.xml", {
-    "about_thanks": "Автор и разработчик ReverseScan 3D: Bähr. Контакт: rb-service@live.de.",
-    "license_copyright": "ReverseScan 3D — автор и разработчик Bähr.",
-    "license_body": "ReverseScan 3D распространяется с учётом условий GNU AGPL версии 3. Автор и разработчик ReverseScan 3D: Bähr. Контакт: rb-service@live.de. Обязательные уведомления исходного проекта и сторонних библиотек сохранены в полных лицензионных документах и уведомлениях о сторонних компонентах. Исходный код ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid.",
+    "about_thanks": "Автор и разработчик ReverseScan 3D: Bähr. © 2026. Контакт: rb-service@live.de. Сайт и проект: https://github.com/rb777pc-dotcom/ReverseScanAndroid.",
+    "license_copyright": "Copyright © 2026 Bähr. ReverseScan 3D.",
+    "license_body": "Copyright © 2026 Bähr. ReverseScan 3D распространяется с учётом условий GNU AGPL версии 3. Автор и разработчик: Bähr. Контакт: rb-service@live.de. Сайт и исходный код проекта: https://github.com/rb777pc-dotcom/ReverseScanAndroid. Обязательные уведомления исходного проекта и сторонних библиотек сохранены в полных лицензионных документах и уведомлениях о сторонних компонентах.",
 })
 
 # Final branding cleanup: remove obsolete upstream component-credit strings from

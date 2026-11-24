@@ -1559,8 +1559,6 @@ translations = {
     'recent_empty': 'Открытые модели появятся здесь.',
     'empty_title': 'ReverseScan 3D',
     'empty_body': 'Сканируйте предметы, создавайте цветные 3D-модели или открывайте готовые файлы STL, OBJ, PLY, 3MF, glTF и GLB.',
-    'capture_object': 'Новая съёмка',
-    'capture_entry': 'Мои съёмки',
     'close_model': 'Закрыть модель',
     'recent_back': 'Назад',
 }

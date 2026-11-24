@@ -1875,3 +1875,37 @@ if 'android:roundIcon=' in manifest_xml:
 else:
     manifest_xml = manifest_xml.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"', 1)
 manifest_path.write_text(manifest_xml)
+
+
+# Final identity/version sweep across the complete Android app source tree.
+# Replace upstream product branding in source comments, diagnostics, exports and
+# generated metadata as well as visible UI strings. Legal notice documents are
+# deliberately not rewritten.
+for source in (ROOT / "app").rglob("*"):
+    if not source.is_file() or source.suffix.lower() not in {
+        ".kt", ".java", ".xml", ".json", ".txt", ".html", ".md", ".gradle",
+        ".kts", ".properties", ".toml", ".yaml", ".yml", ".pro", ".cfg", ".ini",
+        ".sh", ".py", ".c", ".cc", ".cpp", ".h", ".hpp", ".cmake"
+    }:
+        continue
+    if any(part.lower() in {"license", "licenses", "notice", "notices", "third_party", "third-party", "copying", "copyright"} for part in source.parts):
+        continue
+    try:
+        body = source.read_text()
+    except (UnicodeDecodeError, OSError):
+        continue
+    updated = re.sub(r"Strata\\s*:\\s*3D", "ReverseScan 3D", body, flags=re.I)
+    updated = re.sub(r"David\\s+Morales", "Richard Bähr", updated, flags=re.I)
+    updated = re.sub(r"damzenquis|nini1294", "Richard Bähr", updated, flags=re.I)
+    if updated != body:
+        source.write_text(updated)
+
+# The app's displayed version is derived from Android package metadata. Bump both
+# app modules together so About, Licences and Android package metadata cannot drift.
+for gradle_file in (ROOT / "app/build.gradle.kts", Path(__file__).resolve().parent.parent / "app/build.gradle.kts"):
+    if not gradle_file.is_file():
+        continue
+    gradle = gradle_file.read_text()
+    gradle = re.sub(r"versionCode\\s*=\\s*9\\b", "versionCode = 10", gradle)
+    gradle = re.sub(r'versionName\\s*=\\s*"0\\.9\\.0"', 'versionName = "0.9.1"', gradle)
+    gradle_file.write_text(gradle)

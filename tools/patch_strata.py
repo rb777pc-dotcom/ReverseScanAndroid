@@ -2658,3 +2658,23 @@ translate("app/src/main/res/values-de/strings_recon.xml", {
     "export_unsized": "Für dieses Modell ist noch keine reale Größe festgelegt. Fügen Sie eine Größe hinzu, um im realen Maßstab zu exportieren.",
     "export_no_app": "Auf diesem Telefon ist keine App zum Öffnen dieses Dateityps installiert."
 })
+
+
+# Make preview selection resilient to camera startup and permit deliberate re-selection.
+# A tap is valid as soon as the PreviewView has dimensions; ImageCapture resolution is
+# used when ready, otherwise the camera's documented portrait 4:3 fallback is used.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        val ic = imageCapture ?: return",
+    "        val ic = imageCapture"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        if (synchronized(lock) { photoCount > 0 || finishing }) return",
+    "        if (synchronized(lock) { finishing }) return"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "        val info = ic.resolutionInfo",
+    "        val info = ic?.resolutionInfo"
+)

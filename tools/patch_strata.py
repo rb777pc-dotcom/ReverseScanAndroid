@@ -1822,3 +1822,30 @@ if image_json_line is not None:
 elif "imageMimeTypes[i]" not in model_export_text:
     raise SystemExit("GLB image JSON line missing; refusing unsafe texture patch")
 model_export.write_text(model_export_text)
+
+
+# Keep the visible product identity consistent on every information page.
+info_path = ROOT / "app/src/main/java/app/strata3d/ui/InfoPages.kt"
+info_source = info_path.read_text()
+version_old = 'return "Strata:3D " + context.getString(R.string.info_version, info.versionName ?: "", code)'
+version_new = 'return "ReverseScan 3D " + context.getString(R.string.info_version, info.versionName ?: "", code)'
+if version_old in info_source:
+    info_source = info_source.replace(version_old, version_new, 1)
+elif version_new not in info_source:
+    raise SystemExit("App version branding anchor missing; refusing partial branding patch")
+# Remove upstream component author list from the app-author screen source itself.
+credits_start = info_source.find("private val CREDITS = listOf(")
+if credits_start >= 0:
+    credits_end = info_source.find("\\n)", credits_start)
+    if credits_end < 0:
+        raise SystemExit("Credits list end missing; refusing partial branding patch")
+    info_source = info_source[:credits_start] + "private val CREDITS = emptyList<Credit>()" + info_source[credits_end + 2:]
+info_path.write_text(info_source)
+
+# Visible app authorship is Richard Bähr. Upstream and library legal notices remain
+# in the dedicated full licence / third-party notices documents, not as app authors.
+translate("app/src/main/res/values/strings_info.xml", {
+    "about_thanks": "Автор и разработчик ReverseScan 3D: Richard Bähr.",
+    "license_copyright": "ReverseScan 3D — автор и разработчик Richard Bähr.",
+    "license_body": "ReverseScan 3D распространяется с учётом условий GNU AGPL версии 3. Обязательные уведомления исходного проекта и сторонних библиотек сохранены в полных лицензионных документах и уведомлениях о сторонних компонентах. Исходный код ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid.",
+})

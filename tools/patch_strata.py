@@ -1807,6 +1807,6 @@ replace_once(
 )
 replace_once(
     "app/src/main/java/app/strata3d/capture/recon/ModelExport.kt",
-    '''                append("\\\"images\\\":[${imageViews.joinToString(",") { "{\\\"bufferView\\\":\$it,\\\"mimeType\\\":\\\"image/png\\\"}" }}],")''',
+    '''                append("\\\"images\\\":[${imageViews.joinToString(",") { "{\\\"bufferView\\\":$it,\\\"mimeType\\\":\\\"image/png\\\"}" }}],")''',
     '''                append("\\\"images\\\":[${imageViews.indices.joinToString(",") { i -> "{\\\"bufferView\\\":${imageViews[i]},\\\"mimeType\\\":\\\"${imageMimeTypes[i]}\\\"}" }}],")'''
 )

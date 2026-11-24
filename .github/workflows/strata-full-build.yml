@@ -75,6 +75,7 @@ jobs:
       - name: Apply scanner reliability and Russian UI fixes
         run: |
           python3 tools/patch_strata.py
+          python3 tools/audit_branding.py
           # Remove optional letterSpacing arguments without deleting their Compose Text calls.
           sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' strata/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
 

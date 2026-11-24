@@ -1498,6 +1498,12 @@ strings.write_text(st)
 viewer_path = "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
 viewer = ROOT / viewer_path
 vs = viewer.read_text()
+# The dashboard uses Compose letterSpacing in sp; upstream ViewerScreen lacks this import.
+if "import androidx.compose.ui.unit.sp" not in vs:
+    package_line = next((line for line in vs.splitlines() if line.startswith("package ")), None)
+    if package_line is None:
+        raise SystemExit("ViewerScreen package declaration missing")
+    vs = vs.replace(package_line, package_line + "\\n\\nimport androidx.compose.ui.unit.sp", 1)
 old_empty = """@Composable
 private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, modifier: Modifier = Modifier) {
     Column(

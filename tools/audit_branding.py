@@ -32,7 +32,7 @@ extensions = {
 legal_parts = {"license", "licenses", "notice", "notices", "third_party", "third-party", "copying", "copyright"}
 banned = re.compile(r"Strata\s*:\s*3D|David\s+Morales|damzenquis|nini1294", re.I)
 hits = []
-for path in ROOT.rglob("*"):
+for path in APP.rglob("*"):
     if not path.is_file() or path.suffix.lower() not in extensions:
         continue
     if any(part.lower() in legal_parts for part in path.parts):
@@ -51,7 +51,7 @@ if hits:
 # Validate the user-supplied launcher artwork byte-for-byte.
 brand_b64 = REPO / "assets/reversescan_rb_icon.webp.b64"
 expected = base64.b64decode("".join(brand_b64.read_text().split()), validate=True)
-icon = RES / "mipmap-nodpi/ic_launcher.webp"
+icon = RES / "drawable-nodpi/reversescan_app_icon.webp"
 if not icon.is_file() or icon.read_bytes() != expected:
     raise SystemExit("Brand audit: launcher icon is not the supplied ReverseScan RB artwork")
 print("Brand audit passed: no foreign product branding in app code/resources; legal notices preserved.")

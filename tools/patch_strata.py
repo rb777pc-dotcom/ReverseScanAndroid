@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Apply the ReverseScan usability and reconstruction fixes to the pinned Strata checkout."""
 from pathlib import Path
+import base64
 import re
 
 ROOT = Path(__file__).resolve().parent.parent / "strata"
@@ -1899,6 +1900,32 @@ for source in (ROOT / "app").rglob("*"):
     updated = re.sub(r"damzenquis|nini1294", "Richard Bähr", updated, flags=re.I)
     if updated != body:
         source.write_text(updated)
+
+# Install the exact user-approved ReverseScan launcher icon into the app that CI actually builds.
+# The source artwork is kept in the repository as base64 so the patcher can copy it
+# into the pinned upstream checkout on every clean CI run.
+icon_source = Path(__file__).resolve().parent.parent / "assets/reversescan_rb_icon.webp.b64"
+icon_target = ROOT / "app/src/main/res/drawable-nodpi/reversescan_app_icon.webp"
+manifest = ROOT / "app/src/main/AndroidManifest.xml"
+if not icon_source.is_file():
+    raise SystemExit(f"Missing ReverseScan launcher artwork: {icon_source}")
+if not manifest.is_file():
+    raise SystemExit(f"Missing Android manifest: {manifest}")
+icon_target.parent.mkdir(parents=True, exist_ok=True)
+try:
+    icon_target.write_bytes(base64.b64decode(icon_source.read_text().strip(), validate=True))
+except Exception as exc:
+    raise SystemExit(f"Invalid ReverseScan launcher artwork: {exc}")
+manifest_text = manifest.read_text()
+manifest_text, icon_count = re.subn(
+    r'android:icon="@mipmap/ic_launcher"',
+    'android:icon="@drawable/reversescan_app_icon"',
+    manifest_text,
+    count=1,
+)
+if icon_count != 1:
+    raise SystemExit("Could not replace the upstream launcher icon reference")
+manifest.write_text(manifest_text)
 
 # The app's displayed version is derived from Android package metadata. Bump both
 # app modules together so About, Licences and Android package metadata cannot drift.

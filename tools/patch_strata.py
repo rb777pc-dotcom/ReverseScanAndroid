@@ -2080,11 +2080,20 @@ import java.util.Locale
 object LocalePreferences {
     private const val PREFS = "reversescan_preferences"
     private const val KEY_LANGUAGE = "language"
-    const val DEFAULT_LANGUAGE = "ru"
+    private val SUPPORTED_LANGUAGES = setOf("ru", "en", "de")
 
-    fun selected(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+    // A saved user choice always wins. On first launch, follow the device language
+    // when supported; otherwise use English. No preference is written for this
+    // automatic choice, so an explicit selection remains distinguishable and durable.
+    fun selected(context: Context): String {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val saved = preferences.getString(KEY_LANGUAGE, null)
+        if (saved in SUPPORTED_LANGUAGES) return saved!!
+
+        val deviceLanguage = context.resources.configuration.locales
+            .get(0)?.language?.lowercase(Locale.ROOT)
+        return if (deviceLanguage in SUPPORTED_LANGUAGES) deviceLanguage!! else "en"
+    }
 
     fun save(context: Context, language: String) {
         require(language in setOf("ru", "en", "de"))

@@ -1457,128 +1457,284 @@ replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
 # Rebuild the corrected source patch set.
 
 
-# ReverseScan brand identity and a useful start screen. These edits are applied to
-# the actual upstream app source before Gradle builds the APK.
-import base64
-brand_source = Path(__file__).resolve().parent.parent / "assets/reversescan_icon.webp.b64"
-if not brand_source.is_file():
-    raise SystemExit("ReverseScan brand asset is missing")
-brand_text = "".join(brand_source.read_text().split())
-# The checked-in Base64 payload was truncated by one character. Recover the
-# complete RIFF/WebP payload length from its header rather than aborting the APK build.
-brand_text = brand_text.rstrip("=")
-brand_text = brand_text[:len(brand_text) - (len(brand_text) % 4)]
-brand_bytes = base64.b64decode(brand_text)
-if len(brand_bytes) < 1000 or brand_bytes[:4] != b"RIFF" or brand_bytes[8:12] != b"WEBP":
-    raise SystemExit("ReverseScan brand asset is invalid; restore the original RB image")
-expected_size = int.from_bytes(brand_bytes[4:8], "little") + 8
-if len(brand_bytes) == expected_size - 1:
-    brand_bytes += b"\x00"
-if len(brand_bytes) != expected_size:
-    raise SystemExit("ReverseScan brand asset has an unrecoverable length; restore the original RB image")
-res = ROOT / "app/src/main/res"
-(res / "drawable-nodpi").mkdir(parents=True, exist_ok=True)
-(res / "mipmap-nodpi").mkdir(parents=True, exist_ok=True)
-(res / "drawable-nodpi/reversescan_brand.webp").write_bytes(brand_bytes)
-(res / "mipmap-nodpi/ic_launcher.webp").write_bytes(brand_bytes)
+# ReverseScan 3D visual refresh.
+# Do not consume the damaged legacy Base64 logo. Use a typographic wordmark in-app
+# until the original RB artwork is restored from the user's source image.
+def replace_file_text(relative_path, old, new):
+    p = ROOT / relative_path
+    s = p.read_text()
+    if old not in s:
+        raise SystemExit(f"Expected design anchor not found in {relative_path}: {old[:100]!r}")
+    p.write_text(s.replace(old, new, 1))
 
-manifest = ROOT / "app/src/main/AndroidManifest.xml"
-manifest_text = manifest.read_text()
-manifest_text = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', manifest_text, count=1)
-if 'android:roundIcon=' not in manifest_text:
-    manifest_text = manifest_text.replace(
-        'android:icon="@mipmap/ic_launcher"',
-        'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"',
-        1
-    )
-manifest.write_text(manifest_text)
-
-# Replace the upstream viewer glyph with the supplied RB ReverseScan emblem.
-viewer = ROOT / "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
-viewer_text = viewer.read_text()
-viewer_text = viewer_text.replace(
-    'StrataLogo(Modifier.size(width = 36.dp, height = 34.dp))',
-    'Image(painter = painterResource(R.drawable.reversescan_brand), contentDescription = stringResource(R.string.app_name), modifier = Modifier.size(38.dp))',
-    1
-)
-# The same brand mark is visible on the empty start page.
-viewer_text = viewer_text.replace(
-    'private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, modifier: Modifier = Modifier) {',
-    'private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, onLibrary: () -> Unit, modifier: Modifier = Modifier) {',
-    1
-)
-viewer_text = viewer_text.replace(
-    'intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, modifier = m) },',
-    'intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, onLibrary = { onOpenCapture(false) }, modifier = m) },',
-    1
-)
-viewer_text = viewer_text.replace(
-    '''    ) {
-        Text(
-            text = stringResource(R.string.empty_title),''',
-    '''    ) {
-        Image(
-            painter = painterResource(R.drawable.reversescan_brand),
-            contentDescription = stringResource(R.string.app_name),
-            modifier = Modifier.size(148.dp),
-        )
-        Text(
-            text = stringResource(R.string.empty_title),''',
-    1
-)
-viewer_text = viewer_text.replace(
-    '''        OutlinedButton(
-            onClick = onCapture,''',
-    '''        OutlinedButton(
-            onClick = onLibrary,
-            border = BorderStroke(1.dp, BrandCyan),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandCyan),
-        ) {
-            Icon(Icons.Outlined.History, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.capture_library_import))
-        }
-        OutlinedButton(
-            onClick = onCapture,''',
-    1
-)
-if 'onLibrary: () -> Unit' not in viewer_text or 'capture_library_import' not in viewer_text:
-    raise SystemExit("Could not apply the ReverseScan home screen actions safely")
-viewer.write_text(viewer_text)
-
+# Application identity and Russian home-screen labels.
 strings = ROOT / "app/src/main/res/values/strings.xml"
 st = strings.read_text()
 translations = {
-    'app_name': 'ReverseScan 3D',
-    'open_file': 'Открыть 3D-модель',
-    'model_info': 'Информация о модели',
-    'settings': 'Настройки',
-    'settings_panel_title': 'Меню ReverseScan',
-    'recent_models': 'Недавние модели',
-    'recent_files': 'Мои 3D-модели',
-    'recent_empty': 'Открытые модели появятся здесь.',
-    'empty_title': 'ReverseScan 3D',
-    'empty_body': 'Сканируйте предметы, создавайте цветные 3D-модели или открывайте готовые файлы STL, OBJ, PLY, 3MF, glTF и GLB.',
-    'close_model': 'Закрыть модель',
-    'recent_back': 'Назад',
+    "app_name": "ReverseScan 3D",
+    "open_file": "Открыть 3D-модель",
+    "model_info": "Информация о модели",
+    "settings": "Настройки",
+    "settings_panel_title": "Меню ReverseScan",
+    "recent_models": "Недавние модели",
+    "recent_files": "Мои 3D-модели",
+    "recent_empty": "Открытые модели появятся здесь.",
+    "empty_title": "Создавайте 3D-модели",
+    "empty_body": "Сканируйте предметы камерой, получайте цветные 3D-модели и открывайте готовые файлы STL, OBJ, PLY, 3MF, glTF и GLB.",
+    "close_model": "Закрыть модель",
+    "recent_back": "Назад",
 }
 for key, value in translations.items():
-    pattern = rf'(<string name="{re.escape(key)}">).*?(</string>)'
+    pattern = rf'(<string\s+name="{re.escape(key)}">).*?(</string>)'
     st, n = re.subn(pattern, lambda m: m.group(1) + value + m.group(2), st, count=1, flags=re.S)
-    if n == 0:
-        if key == 'capture_library_import':
-            st += '\n    <string name="capture_library_import">Мои съёмки и импорт ZIP</string>\n'
-        else:
-            raise SystemExit(f"Required string not found: {key}")
+    if n != 1:
+        raise SystemExit(f"Required string not found exactly once: {key}")
 if 'name="capture_library_import"' not in st:
-    st = st.replace('</resources>', '    <string name="capture_library_import">Мои съёмки и импорт ZIP</string>\n</resources>')
+    st = st.replace("</resources>", '    <string name="capture_library_import">Мои съёмки и импорт ZIP</string>\n</resources>')
 strings.write_text(st)
 
-# Keep the app consistently dark and use the electric-blue identity in system bars.
-# Keep upstream style resource identifiers intact: MainActivity references them by R.style.
-colors = ROOT / "app/src/main/res/values/colors.xml"
-if colors.exists():
-    col = colors.read_text().replace('#ECEFF3', '#080D19').replace('#1C1D21', '#080D19').replace('#FFFFFF', '#080D19')
-    colors.write_text(col)
+# Replace the upstream home screen with a compact, card-based ReverseScan dashboard.
+viewer_path = "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
+viewer = ROOT / viewer_path
+vs = viewer.read_text()
+old_empty = """@Composable
+private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.empty_title),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.empty_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Button(
+            onClick = onOpen,
+            colors = ButtonDefaults.buttonColors(containerColor = BrandCyan, contentColor = OnBrandCyan),
+        ) {
+            Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.open_file))
+        }
+        OutlinedButton(
+            onClick = onCapture,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.accentText),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.accentText),
+        ) {
+            Icon(Icons.Outlined.CameraAlt, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.capture_object))
+        }
+    }
+}"""
+new_empty = """@Composable
+private fun EmptyState(
+    onOpen: () -> Unit,
+    onCapture: () -> Unit,
+    onLibrary: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 520.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 3.dp,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(52.dp)
+                            .clip(RoundedCornerShape(17.dp))
+                            .background(BrandCyan.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Outlined.ViewInAr,
+                            contentDescription = null,
+                            tint = BrandCyan,
+                            modifier = Modifier.size(30.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "REVERSCAN 3D",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = BrandCyan,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.6.sp,
+                        )
+                        Text(
+                            "СКАНИРОВАНИЕ · МОДЕЛИ · ЭКСПОРТ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 0.5.sp,
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.empty_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.empty_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(2.dp))
+                Button(
+                    onClick = onCapture,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandCyan, contentColor = OnBrandCyan),
+                ) {
+                    Icon(Icons.Outlined.CameraAlt, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Начать новое сканирование", fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = onOpen,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.open_file))
+                }
+                OutlinedButton(
+                    onClick = onLibrary,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Icon(Icons.Outlined.History, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.capture_library_import))
+                }
+            }
+        }
+    }
+}"""
+if(!vs.includes(old_empty)) throw new Error("Home screen EmptyState source differs; stopped without partial write");
+vs=vs.replace(old_empty,new_empty);
+const old_call='intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, modifier = m) },';
+const new_call='intro = { m -> EmptyState(onOpen = launchPicker, onCapture = { onOpenCapture(true) }, onLibrary = { onOpenCapture(false) }, modifier = m) },';
+if(!vs.includes(old_call)) throw new Error("EmptyState callsite missing");
+vs=vs.replace(old_call,new_call);
+const old_title="""                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                StrataLogo(Modifier.size(width = 36.dp, height = 34.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = model?.fileName ?: stringResource(R.string.app_name),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }""";
+const new_title="""                            Text(
+                                text = model?.fileName ?: stringResource(R.string.app_name),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.15.sp,
+                            )""";
+if(!vs.includes(old_title)) throw new Error("Top bar title source differs");
+vs=vs.replace(old_title,new_title);
+viewer.write_text(vs);
 
-print("Applied ReverseScan RB branding, launcher icon, Russian start screen and direct access to captures/import.")
+# Brand palette: graphite/navy surfaces with electric-blue controls and cyan highlights.
+const themePath=ROOT/"app/src/main/java/app/strata3d/ui/theme/Theme.kt";
+let theme=themePath.read_text();
+const replacements=[
+["Color(0xFF01B2C6)","Color(0xFF2F80FF)"],
+["Color(0xFF00252A)","Color(0xFF071426)"],
+["Color(0xFFB9EEF5)","Color(0xFFDCEBFF)"],
+["Color(0xFF00363D)","Color(0xFF102A4D)"],
+["Color(0xFFD2F3F7)","Color(0xFFE6F0FF)"],
+["Color(0xFF007C8A)","Color(0xFF1762C4)"],
+["Color(0xFF7FE5F2)","Color(0xFF8CB8FF)"],
+["Color(0xFFECEFF3)","Color(0xFFF2F5FA)"],
+["Color(0xFF191C1D)","Color(0xFF101827)"],
+["Color(0xFFFFFFFF)","Color(0xFFFFFFFF)"],
+["Color(0xFFDBE4E6)","Color(0xFFE3EAF3)"],
+["Color(0xFF3F484A)","Color(0xFF42516A)"],
+["Color(0xFFF7F9FA)","Color(0xFFF8FAFD)"],
+["Color(0xFFF1F3F5)","Color(0xFFF1F5FA)"],
+["Color(0xFFEBEEF0)","Color(0xFFEAF0F7)"],
+["Color(0xFFE5E8EA)","Color(0xFFE2EAF4)"],
+["Color(0xFF6F797A)","Color(0xFF6D7C91)"],
+["Color(0xFFBFC8CA)","Color(0xFFCBD6E5)"],
+["Color(0xFF004E57)","Color(0xFF163D76)"],
+["Color(0xFFB9F3FA)","Color(0xFFDCEBFF)"],
+["Color(0xFFB1CBD0)","Color(0xFFB7C9E2)"],
+["Color(0xFF1C3438)","Color(0xFF13243D)"],
+["Color(0xFF0F4A52)","Color(0xFF17345A)"],
+["Color(0xFFC3F4FA)","Color(0xFFD9E8FF)"],
+["Color(0xFF1C1D21)","Color(0xFF080E1A)"],
+["Color(0xFFE1E3E3)","Color(0xFFEAF1FC)"],
+["Color(0xFF26282C)","Color(0xFF111C2E)"],
+["Color(0xFF17181B)","Color(0xFF070D18)"],
+["Color(0xFF1F2124)","Color(0xFF0C1524)"],
+["Color(0xFF232528)","Color(0xFF111D30)"],
+["Color(0xFF2D2F33)","Color(0xFF17253B)"],
+["Color(0xFF383A3E)","Color(0xFF1D2D46)"],
+["Color(0xFF899294)","Color(0xFF7386A3)"],
+];
+for(const [a,b] of replacements) theme=theme.replaceAll(a,b);
+themePath.write_text(theme);
+
+# Dark system bars and launcher background; remove the malformed old image from build inputs.
+const colorsPath=ROOT/"app/src/main/res/values/colors.xml";
+if(colorsPath.exists()){
+ let c=colorsPath.read_text().replace("#ECEFF3","#080E1A").replace("#1C1D21","#080E1A").replace("#FFFFFF","#080E1A");
+ colorsPath.write_text(c);
+}
+const manifest=ROOT/"app/src/main/AndroidManifest.xml";
+let mt=manifest.read_text();
+mt=mt.replace(/android:icon="[^"]+"/,'android:icon="@mipmap/ic_launcher"');
+if(!mt.includes("android:roundIcon=")) mt=mt.replace('android:icon="@mipmap/ic_launcher"','android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"');
+manifest.write_text(mt);
+const res=ROOT/"app/src/main/res";
+(res/"mipmap-anydpi-v26").mkdir(parents=True,exist_ok=True);
+(res/"drawable").mkdir(parents=True,exist_ok=True);
+(res/"values").mkdir(parents=True,exist_ok=True);
+(res/"values/colors_brand.xml").write_text("""<resources>
+    <color name="brand_night">#080E1A</color>
+</resources>
+""");
+(res/"drawable/ic_launcher_foreground.xml").write_text("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#00000000" android:strokeColor="#2F80FF"
+        android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M23,38 L23,23 L38,23 M70,23 L85,23 L85,38 M85,70 L85,85 L70,85 M38,85 L23,85 L23,70" />
+    <path android:fillColor="#00000000" android:strokeColor="#38DDF2"
+        android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M36,54 L48,66 L73,41" />
+</vector>
+""");
+(res/"mipmap-anydpi-v26/ic_launcher.xml").write_text("""<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/brand_night" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+""");
+print("Applied ReverseScan 3D dashboard, Russian labels, blue/navy theme and removed the broken legacy logo from the UI pipeline.");

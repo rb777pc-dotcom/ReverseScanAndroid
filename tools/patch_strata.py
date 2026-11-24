@@ -2167,23 +2167,8 @@ if "var showLanguagePicker" not in viewer_source:
                         InfoPage.HELP""",
         1,
     )
-    # Put the language dialog at the end of SettingsPanel's composition.
-    marker = """                    }.forEach { (page, icon) ->
-                        PanelItem(icon = icon, label = stringResource(page.title), onClick = { infoPage = page })
-                    }
-                }
-            }
-        }
-    }
-}"""
-    replacement = """                    }.forEach { (page, icon) ->
-                        PanelItem(icon = icon, label = stringResource(page.title), onClick = { infoPage = page })
-                    }
-                }
-            }
-        }
-    }
-    if (showLanguagePicker) {
+    # Insert the dialog immediately before SettingsPanel's closing brace.
+    dialog = """    if (showLanguagePicker) {
         val context = LocalContext.current
         val selectedLanguage = app.strata3d.LocalePreferences.selected(context)
         AlertDialog(
@@ -2219,10 +2204,12 @@ if "var showLanguagePicker" not in viewer_source:
             },
         )
     }
-}"""
-    if marker not in viewer_source:
-        raise SystemExit("SettingsPanel end anchor missing for language dialog")
-    viewer_source = viewer_source.replace(marker, replacement, 1)
+"""
+    end_marker = "\n}\n\n/**\n * Collapsible right-edge rail"
+    end_pos = viewer_source.find(end_marker)
+    if end_pos < 0:
+        raise SystemExit("SettingsPanel closing anchor missing")
+    viewer_source = viewer_source[:end_pos] + "\n" + dialog + viewer_source[end_pos:]
     # Ensure required Compose imports exist.
     imports = [
         "import androidx.compose.material3.AlertDialog",

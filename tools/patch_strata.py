@@ -2088,11 +2088,11 @@ object LocalePreferences {
     fun selected(context: Context): String {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val saved = preferences.getString(KEY_LANGUAGE, null)
-        if (saved in SUPPORTED_LANGUAGES) return saved!!
+        if (saved != null && saved in SUPPORTED_LANGUAGES) return saved
 
         val deviceLanguage = context.resources.configuration.locales
             .get(0)?.language?.lowercase(Locale.ROOT)
-        return if (deviceLanguage in SUPPORTED_LANGUAGES) deviceLanguage!! else "en"
+        return if (deviceLanguage != null && deviceLanguage in SUPPORTED_LANGUAGES) deviceLanguage else "en"
     }
 
     fun save(context: Context, language: String) {

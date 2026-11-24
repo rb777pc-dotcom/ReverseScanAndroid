@@ -110,6 +110,15 @@ capture_ru = {
 "capture_summary_size":"Размер",
 "capture_mode_manual":"Вручную",
 "capture_resume":"Продолжить",
+"capture_import":"Импортировать съёмку из ZIP",
+"capture_import_short":"Импорт ZIP",
+"capture_new_scan":"Начать новое сканирование",
+"capture_torch_on":"Фонарик ВКЛ",
+"capture_torch_off":"Фонарик ВЫКЛ",
+"capture_coverage_title":"Карта ракурсов",
+"capture_coverage_done":"Бирюзовый сектор — ракурс уже снят",
+"capture_coverage_missing":"Серый сектор — ракурс ещё нужен",
+"capture_coverage_bottom":"Нижнюю сторону под столом можно доснять отдельно, перевернув предмет",
 "capture_guide_missing":"Серый — ещё не снято",
 }
 recon_ru = {
@@ -608,7 +617,7 @@ replace_once(
     "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
     "                ModeChip(state.mode, enabled = state.smartAvailable) {",
     """                Text(
-                    if (state.torchOn) "Фонарик ВКЛ" else "Фонарик ВЫКЛ",
+                    if (state.torchOn) stringResource(R.string.capture_torch_on) else stringResource(R.string.capture_torch_off),
                     color = if (state.torchOn) Teal else OnScrim,
                     fontSize = 12.sp,
                     modifier = Modifier
@@ -632,10 +641,10 @@ replace_once(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("Карта ракурсов", color = OnScrim, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Бирюзовый сектор — ракурс уже снят", color = Teal, fontSize = 11.sp)
-                    Text("Серый сектор — ракурс ещё нужен", color = OnScrim, fontSize = 11.sp)
-                    Text("Нижнюю сторону под столом можно доснять отдельно, перевернув предмет", color = OnScrim, fontSize = 10.sp)
+                    Text(stringResource(R.string.capture_coverage_title), color = OnScrim, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.capture_coverage_done), color = Teal, fontSize = 11.sp)
+                    Text(stringResource(R.string.capture_coverage_missing), color = OnScrim, fontSize = 11.sp)
+                    Text(stringResource(R.string.capture_coverage_bottom), color = OnScrim, fontSize = 10.sp)
                 }
                 CoverageDome(listOf(state.lowerRing, state.upperRing), null, Modifier.size(104.dp))
             }"""
@@ -1158,7 +1167,7 @@ def add_archive_resume():
         if toolbar_anchor not in s: raise SystemExit("import toolbar anchor missing")
         s = s.replace(toolbar_anchor, '''                actions = {
                     TextButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) }) {
-                        Text("Импорт ZIP")
+                        Text(stringResource(R.string.capture_import_short))
                     }
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.capture_more)) }''', 1)
     anchor = '''                        DropdownMenuItem(
@@ -1524,7 +1533,7 @@ visible_import = '''            OutlinedButton(
             ) {
                 Icon(Icons.Outlined.Share, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Импортировать съёмку из ZIP")
+                Text(stringResource(R.string.capture_import))
             }
 '''
 library_anchor = "        Column(Modifier.fillMaxSize().padding(padding)) {\n"
@@ -1794,7 +1803,7 @@ private fun EmptyState(
                 ) {
                     Icon(Icons.Outlined.CameraAlt, contentDescription = null)
                     Spacer(Modifier.width(10.dp))
-                    Text("Начать новое сканирование", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.capture_new_scan), fontWeight = FontWeight.SemiBold)
                 }
                 OutlinedButton(
                     onClick = onOpen,
@@ -2141,6 +2150,23 @@ if ROOT / "app/build.gradle.kts" not in version_targets or not (ROOT / "app/buil
     raise SystemExit("Full scanner Gradle version file was not found")
 
 
+# Localize labels added by ReverseScan in every supported language.
+translate("app/src/main/res/values-en/strings_capture.xml", {
+    "capture_import": "Import capture ZIP", "capture_import_short": "Import ZIP",
+    "capture_new_scan": "Start new scan", "capture_torch_on": "Torch ON",
+    "capture_torch_off": "Torch OFF", "capture_coverage_title": "Viewpoint coverage",
+    "capture_coverage_done": "Turquoise sector — viewpoint captured",
+    "capture_coverage_missing": "Grey sector — viewpoint still needed",
+    "capture_coverage_bottom": "Capture the underside separately by turning the object over"
+})
+translate("app/src/main/res/values-de/strings_capture.xml", {
+    "capture_import": "Aufnahme-ZIP importieren", "capture_import_short": "ZIP importieren",
+    "capture_new_scan": "Neue Aufnahme starten", "capture_torch_on": "Taschenlampe EIN",
+    "capture_torch_off": "Taschenlampe AUS", "capture_coverage_title": "Blickwinkel-Abdeckung",
+    "capture_coverage_done": "Türkis — Blickwinkel aufgenommen",
+    "capture_coverage_missing": "Grau — Blickwinkel fehlt noch",
+    "capture_coverage_bottom": "Die Unterseite separat aufnehmen, indem Sie das Objekt umdrehen"
+})
 # Persistent in-app language selection. The locale wrapper is applied to both
 # activities so the viewer, camera, reconstruction and all dialogs use one language.
 locale_source = ROOT / "app/src/main/java/app/strata3d/LocalePreferences.kt"

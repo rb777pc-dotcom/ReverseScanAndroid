@@ -2389,3 +2389,301 @@ elif "R.string.plans_body" not in info_source:
 info_path.write_text(info_source)
 
 print("Enforced full scanner version 0.9.1 (versionCode 10) in: " + ", ".join(patched_versions))
+
+
+# Improve object picking and identity continuity. A tap must hit a detected object;
+# never silently fall back to the largest object or a nearby unrelated detection.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    '''                        val target = when {
+                            selectedTap == null -> objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+                            lockedId != null -> objects.firstOrNull { it.trackingId == lockedId } ?: nearestPrevious
+                            previousBox != null -> nearestPrevious
+                            else -> objects.mapNotNull { obj ->
+                                val b = obj.boundingBox
+                                val left = b.left.toFloat() / rotatedWidth
+                                val top = b.top.toFloat() / rotatedHeight
+                                val right = b.right.toFloat() / rotatedWidth
+                                val bottom = b.bottom.toFloat() / rotatedHeight
+                                val u = selectedTap.u.toFloat()
+                                val v = selectedTap.v.toFloat()
+                                val dx = maxOf(left - u, 0f, u - right)
+                                val dy = maxOf(top - v, 0f, v - bottom)
+                                obj to (dx * dx + dy * dy)
+                            }.filter { it.second <= 0.16f * 0.16f }
+                                .minByOrNull { it.second }?.first
+                        }''',
+    '''                        val target = when {
+                            // No tap means no selected target. Never guess by choosing the largest detection.
+                            selectedTap == null -> null
+                            lockedId != null && objects.any { it.trackingId == lockedId } ->
+                                objects.first { it.trackingId == lockedId }
+                            else -> {
+                                val tapU = selectedTap.u.toFloat()
+                                val tapV = selectedTap.v.toFloat()
+                                val candidates = objects.mapNotNull { obj ->
+                                    val b = obj.boundingBox
+                                    val left = (b.left.toFloat() / rotatedWidth).coerceIn(0f, 1f)
+                                    val top = (b.top.toFloat() / rotatedHeight).coerceIn(0f, 1f)
+                                    val right = (b.right.toFloat() / rotatedWidth).coerceIn(0f, 1f)
+                                    val bottom = (b.bottom.toFloat() / rotatedHeight).coerceIn(0f, 1f)
+                                    val area = ((right - left) * (bottom - top)).coerceAtLeast(0.0001f)
+                                    if (previousBox == null) {
+                                        // Initial selection: the user's tap must land inside the detected object,
+                                        // allowing only a very small tolerance for detector-box rounding.
+                                        val margin = 0.015f
+                                        if (tapU >= left - margin && tapU <= right + margin &&
+                                            tapV >= top - margin && tapV <= bottom + margin) {
+                                            obj to area // Prefer the smallest box when detections overlap.
+                                        } else null
+                                    } else {
+                                        // Re-identification after an occlusion: require strong spatial continuity.
+                                        // A neighbouring object outside this gate is never adopted as the target.
+                                        val old = previousBox
+                                        val oldArea = (old.width() * old.height()).coerceAtLeast(0.0001f)
+                                        val ratio = area / oldArea
+                                        val ix = (minOf(right, old.right) - maxOf(left, old.left)).coerceAtLeast(0f)
+                                        val iy = (minOf(bottom, old.bottom) - maxOf(top, old.top)).coerceAtLeast(0f)
+                                        val intersection = ix * iy
+                                        val union = area + oldArea - intersection
+                                        val iou = if (union > 0f) intersection / union else 0f
+                                        val dx = (left + right) * 0.5f - old.centerX()
+                                        val dy = (top + bottom) * 0.5f - old.centerY()
+                                        val distance2 = dx * dx + dy * dy
+                                        val sameTarget = ratio in 0.35f..2.8f &&
+                                            (iou >= 0.08f || (distance2 <= 0.055f * 0.055f && iou >= 0.02f))
+                                        if (sameTarget) obj to (distance2 - iou * 0.04f) else null
+                                    }
+                                }
+                                candidates.minByOrNull { it.second }?.first
+                            }
+                        }'''
+)
+# Keep the selected tracking ID through short detector dropouts. It is updated only
+# when the same ID returns or a candidate passes the strict previous-box continuity gate.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                            if (missedObjectFrames >= 3) {\n                                selectedObjectTrackingId = null\n                                if (!_state.value.paused) shutter.setPaused(true)",
+    "                            if (missedObjectFrames >= 3) {\n                                if (!_state.value.paused) shutter.setPaused(true)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/CameraXCapture.kt",
+    "                        if (missedObjectFrames >= 3) {\n                            selectedObjectTrackingId = null\n                            if (!_state.value.paused) shutter.setPaused(true)",
+    "                        if (missedObjectFrames >= 3) {\n                            if (!_state.value.paused) shutter.setPaused(true)"
+)
+
+# Localize the live target status and target-loss notices in all three app languages.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    'Notice.TARGET_LOST -> "Предмет потерян — фото не сделано. Верните его в кадр."',
+    "Notice.TARGET_LOST -> stringResource(R.string.capture_target_lost)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    'Notice.TARGET_EDGE -> "Предмет у края кадра — верните его ближе к центру."',
+    "Notice.TARGET_EDGE -> stringResource(R.string.capture_target_edge)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    'state.objectNearEdge -> "ОБЪЕКТ У КРАЯ · ВЕРНИТЕ В ЦЕНТР"',
+    "state.objectNearEdge -> stringResource(R.string.capture_target_edge_label)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    'state.objectDetected == true -> "ОБЪЕКТ В КАДРЕ · ОТСЛЕЖИВАЕТСЯ"',
+    "state.objectDetected == true -> stringResource(R.string.capture_target_detected_label)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    'state.objectDetected == false -> "ОБЪЕКТ ПОТЕРЯН · НАВЕДИТЕ КАМЕРУ"',
+    "state.objectDetected == false -> stringResource(R.string.capture_target_lost_label)"
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    'else -> "НАВЕДИТЕ КАМЕРУ НА ПРЕДМЕТ"',
+    "else -> stringResource(R.string.capture_target_wait_label)"
+)
+
+translate("app/src/main/res/values/strings_capture.xml", {
+    "capture_target_lost": "Предмет потерян — фото не сделано. Верните его в кадр.",
+    "capture_target_edge": "Предмет у края кадра — переместите его ближе к центру.",
+    "capture_target_edge_label": "ПРЕДМЕТ У КРАЯ — ВЕРНИТЕ В ЦЕНТР",
+    "capture_target_detected_label": "ПРЕДМЕТ В КАДРЕ — ОТСЛЕЖИВАЕТСЯ",
+    "capture_target_lost_label": "ПРЕДМЕТ ПОТЕРЯН — НАВЕДИТЕ КАМЕРУ",
+    "capture_target_wait_label": "НАЖМИТЕ НА ПРЕДМЕТ В КАДРЕ"
+})
+translate("app/src/main/res/values-en/strings_capture.xml", {
+    "capture_target_lost": "Target lost — no photo taken. Bring the object back into view.",
+    "capture_target_edge": "The object is at the edge of the frame. Move it closer to the centre.",
+    "capture_target_edge_label": "OBJECT AT EDGE — MOVE IT TO THE CENTRE",
+    "capture_target_detected_label": "OBJECT IN VIEW — TRACKING",
+    "capture_target_lost_label": "OBJECT LOST — POINT THE CAMERA AT IT",
+    "capture_target_wait_label": "TAP THE OBJECT IN THE FRAME"
+})
+translate("app/src/main/res/values-de/strings_capture.xml", {
+    "capture_target_lost": "Objekt verloren — kein Foto aufgenommen. Bringen Sie es wieder ins Bild.",
+    "capture_target_edge": "Das Objekt befindet sich am Bildrand. Bewegen Sie es näher zur Mitte.",
+    "capture_target_edge_label": "OBJEKT AM RAND — ZUR MITTE BEWEGEN",
+    "capture_target_detected_label": "OBJEKT IM BILD — WIRD VERFOLGT",
+    "capture_target_lost_label": "OBJEKT VERLOREN — KAMERA DARAUF RICHTEN",
+    "capture_target_wait_label": "TIPpen SIE AUF DAS OBJEKT IM BILD"
+})
+
+# Complete the remaining German viewer, capture, information and reconstruction strings.
+translate("app/src/main/res/values-de/strings.xml", {
+    "view_switch_to_ortho": "Perspektivische Ansicht. Zur orthografischen Ansicht wechseln",
+    "view_switch_to_persp": "Orthografische Ansicht. Zur perspektivischen Ansicht wechseln",
+    "view_top_desc": "Ansicht von oben", "view_front_desc": "Vorderansicht",
+    "view_side_desc": "Seitenansicht", "view_iso_desc": "Isometrische Ansicht",
+    "view_fit_desc": "Modell an den Bildschirm anpassen",
+    "recent_needs_reopen": "Nicht verfügbar. Öffnen Sie die Datei erneut und wählen Sie sie aus.",
+    "recent_plus_files": "+%1$d", "recent_more": "Weitere Optionen für %1$s",
+    "recent_clear_title": "Liste der zuletzt geöffneten Dateien leeren?",
+    "recent_clear_body": "Nur die Liste wird geleert. Ihre Dateien werden nicht gelöscht.",
+    "recent_limit_note": "Ihre letzten %1$d Modelle werden hier gespeichert.",
+    "recent_unavailable": "Diese Datei ist nicht mehr verfügbar. Wählen Sie sie über „Erneut öffnen“ noch einmal aus.",
+    "snapshot_transparent_hint": "Nur das Modell auf transparentem Hintergrund (PNG mit Alphakanal).",
+    "snapshot_caption": "Beschriftung mit Name und Größe",
+    "snapshot_size": "Auflösung", "snapshot_size_screen": "Bildschirm",
+    "snapshot_size_double": "2×", "snapshot_size_uhd": "4K",
+    "snapshot_size_unsupported": "Auflösungen, die die GPU dieses Geräts nicht darstellen kann, sind nicht verfügbar. Bilder werden niemals verkleinert.",
+    "snapshot_not_ready": "Die 3D-Ansicht wird noch gestartet.",
+    "snapshot_share_title": "Aufnahme teilen", "snapshot_failed": "Die Aufnahme konnte nicht erstellt werden.",
+    "snapshot_out_of_memory": "Nicht genügend Speicher für diese Auflösung. Versuchen Sie eine kleinere.",
+    "snapshot_no_share_target": "Keine App kann Bilder empfangen.",
+    "loading_named": "%1$s wird geladen …",
+    "mode_solid_desc": "Gefüllte Ansicht", "mode_edges_desc": "Gefüllte Ansicht mit Kanten",
+    "mode_wire_desc": "Drahtgitteransicht",
+    "info_triangles": "Dreiecke", "info_dimensions": "Abmessungen",
+    "info_volume": "Volumen", "info_area": "Oberfläche", "info_file_size": "Dateigröße",
+    "info_load_time": "Ladezeit",
+    "info_units_note": "glTF- und 3MF-Dateien enthalten Einheitenangaben. STL-, OBJ- und PLY-Dateien nicht; bis Sie im Messwerkzeug eine Einheit wählen, werden Millimeter angenommen. Das Volumen ist nur bei geschlossenen Netzen genau.",
+    "info_units": "Einheiten",
+    "gestures_hint": "Ziehen zum Drehen · zwei Finger zum Verschieben · zusammenziehen zum Zoomen · doppeltippen zum Zurücksetzen",
+    "info_location": "Speicherort", "source_uri": "Quell-URI",
+    "location_copied": "Speicherort in die Zwischenablage kopiert",
+    "diag_not_analyzed": "Nicht analysiert",
+    "diag_not_analyzed_hint": "Prüft offene und nicht-mannigfaltige Kanten, umgedrehte oder flächenlose Dreiecke sowie nach innen gekehrte Bereiche. Das Modell wird nicht verändert.",
+    "diag_out_of_memory": "Nicht genügend Speicher, um dieses Modell auf diesem Gerät zu analysieren.",
+    "diag_summary": "%1$s · %2$s · geprüft in %3$d ms",
+    "diag_possible": "möglich", "diag_show_in_3d": "Probleme in 3D anzeigen",
+    "diag_truncated": "Sehr viele Probleme: Es werden nur die ersten 250.000 Einträge jeder Art hervorgehoben.",
+    "diag_issues_badge": "Modellinformationen: Netzfehler gefunden",
+    "diag_legend_desc": "Farben der Hervorhebungen",
+    "diag_open_edges": "Offene Kanten", "diag_non_manifold": "Nicht-mannigfaltige Kanten",
+    "diag_flipped": "Umgedrehte Dreiecke", "diag_degenerate": "Dreiecke ohne Fläche",
+    "diag_non_orientable": "Nicht orientierbare Bereiche", "diag_inverted": "Nach innen gekehrte Bereiche",
+    "diag_cavity": "Innere Hohlräume", "diag_not_highlighted": "In 3D nicht hervorgehoben (Fläche null)",
+    "section_axis_desc": "Schnitt entlang der %1$s-Achse",
+    "section_position_desc": "Position des Schnitts",
+    "section_fill_checking": "Modell wird geprüft, damit der Schnitt gefüllt werden kann …",
+    "section_fill_open": "Nicht gefüllt: Das Modell ist nicht geschlossen (siehe Modellinformationen).",
+    "section_fill_no_stencil": "Nicht gefüllt: Dieses Gerät unterstützt diese Funktion nicht.",
+    "section_fill_failed": "Nicht gefüllt: Die Netzprüfung ist fehlgeschlagen.",
+    "section_fill_unchecked": "Nicht gefüllt: Das Modell wurde noch nicht geprüft.",
+    "section_fill_wireframe": "In der Drahtgitteransicht wird der Schnitt nicht gefüllt.",
+    "measure_copied": "Messwert in die Zwischenablage kopiert",
+    "measure_copy": "Messwert kopieren", "measure_snap": "Einrasten",
+    "measure_snap_desc": "An sichtbaren Eckpunkten einrasten",
+    "measure_units_chip": "Einheiten: %1$s",
+    "measure_units_desc": "Einheiten der Modellkoordinaten: %1$s, %2$s",
+    "unit_source_file": "aus Datei", "unit_source_user": "von Ihnen festgelegt",
+    "unit_source_assumed": "angenommen", "units_as_in_file": "Wie in der Datei (%1$s)",
+    "units_not_specified": "Nicht angegeben (mm annehmen)",
+    "unit_micron": "Mikrometer (µm)", "unit_millimeter": "Millimeter (mm)",
+    "unit_centimeter": "Zentimeter (cm)", "unit_meter": "Meter (m)",
+    "unit_inch": "Zoll (in)", "unit_foot": "Fuß (ft)",
+    "measure_units_assumed_note": "Einheiten angenommen (mm)"
+})
+translate("app/src/main/res/values-de/strings_capture.xml", {
+    "captures_empty_body": "Gehen Sie mit dem Telefon um einen Gegenstand herum. ReverseScan 3D nimmt scharfe Fotos von allen Seiten für die 3D-Rekonstruktion auf.",
+    "capture_stats": "%1$d Fotos · %2$d%% abgedeckt · %3$s",
+    "capture_interrupted": "Unterbrochen · %1$d Fotos behalten",
+    "capture_delete_body": "Die %1$d Fotos werden von diesem Telefon gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    "capture_rename_title": "Aufnahme umbenennen",
+    "capture_export_failed": "Export fehlgeschlagen. Prüfen Sie den freien Speicher am Speicherort.",
+    "capture_more": "Weitere Optionen", "capture_device_report": "Gerätebericht",
+    "capture_close": "Aufnahme schließen",
+    "capture_coverage_desc": "%1$d%% des Objekts abgedeckt",
+    "capture_leave_body": "%1$d Fotos wurden bisher aufgenommen.",
+    "capture_error_title": "Aufnahme angehalten",
+    "guide_hot": "Das Telefon ist heiß. Aufnahme pausiert, bis es abgekühlt ist.",
+    "guide_low_storage": "Speicher fast voll. Aufnahme pausiert.",
+    "guide_paused": "Pausiert",
+    "capture_summary_missing_low": "Fehlen: einige Blickwinkel von unten.",
+    "capture_summary_missing_mid": "Fehlen: einige Blickwinkel von oben.",
+    "capture_summary_complete": "Alle Seiten wurden erfasst.",
+    "capture_summary_next": "Die Rekonstruktion folgt in einem späteren Update.",
+    "capture_photo_failed": "Das letzte Foto konnte nicht gespeichert werden. Die automatische Aufnahme wurde pausiert.",
+    "capture_no_sensors": "Dieses Telefon hat keine Bewegungssensoren für die automatische Aufnahme. Verwenden Sie den manuellen Auslöser.",
+    "capture_count": "%1$d Fotos · empfohlen: mindestens 40",
+    "capture_shutter_locked": "Auslöser gesperrt, bis das Objekt markiert ist",
+    "capture_shutter_smart_desc": "Nimmt ein Foto auf, wenn Sie den Blickwinkel ausreichend geändert haben und das Telefon ruhig halten.",
+    "capture_shutter_manual_desc": "Sie lösen jedes Foto manuell aus."
+})
+translate("app/src/main/res/values-de/strings_info.xml", {
+    "license_full": "Vollständiger Lizenztext (GNU AGPL v3)",
+    "license_notices": "Hinweise zu Drittanbieter-Komponenten",
+    "credit_viewer": "der ursprüngliche 3D-Viewer, aus dem diese App hervorgegangen ist",
+    "credit_drako": "Dekodierung von Draco-komprimierten glTF-Modellen",
+    "credit_meshopt": "Dekodierung von meshoptimizer-komprimierten glTF-Modellen",
+    "credit_mve": "Import von Fotos, Bestimmung der Kamerapositionen und Bereinigung des erstellten Modells",
+    "credit_texturing": "Einfärben des erstellten Modells anhand der Fotos",
+    "credit_mapmap": "Auswahl des Fotos, dessen Farben auf den jeweiligen Modellbereich übertragen werden",
+    "credit_rayint": "Prüfung, welche Modellbereiche auf den einzelnen Fotos sichtbar sind",
+    "credit_openmvs": "Berechnung der Tiefe aus Fotos und Aufbau der Modelloberfläche",
+    "credit_opencv": "Bildverarbeitung innerhalb der Modellrekonstruktion",
+    "credit_boost": "Allgemeine C++-Bausteine für die Modellrekonstruktion",
+    "credit_cgal": "Geometrieverarbeitung zum Aufbau der Modelloberfläche",
+    "credit_vcg": "Bereinigung und Vereinfachung der erstellten Oberfläche",
+    "credit_nanoflann": "Schnelle Suche nach nächstgelegenen Punkten während des Aufbaus",
+    "credit_eigen": "Mathematik (Matrizen und Vektoren) in der Modellrekonstruktion",
+    "credit_tbb": "Ausführung des Texturschritts auf mehreren Prozessorkernen",
+    "credit_libjpeg": "Einlesen der Fotos",
+    "credit_libpng": "Einlesen und Schreiben von Bildern innerhalb der Modellrekonstruktion",
+    "credit_llvm_omp": "Ausführung der Modellrekonstruktion auf mehreren Prozessorkernen",
+    "credit_androidx": "App-Bildschirme, Kamera und Fotoverwaltung"
+})
+translate("app/src/main/res/values-de/strings_recon.xml", {
+    "recon_channel": "Modellrekonstruktion", "recon_notification_title": "3D-Modell wird erstellt",
+    "recon_notification_starting": "Wird gestartet …",
+    "recon_stage_import": "Fotos werden vorbereitet",
+    "recon_stage_cameras": "Fotos werden zugeordnet",
+    "recon_stage_box": "Objekt wird erkannt",
+    "recon_stage_depth": "Tiefe wird berechnet",
+    "recon_stage_points": "Punktwolke wird erstellt",
+    "recon_stage_surface": "Oberfläche wird erstellt",
+    "recon_stage_ground": "Unterlage unter dem Objekt wird entfernt",
+    "recon_stage_clean": "Modell wird bereinigt",
+    "recon_stage_texture": "Farben und Textur werden übertragen",
+    "recon_stage_steps": "%1$s (%2$d von %3$d)",
+    "recon_build_title": "3D-Modell erstellen",
+    "recon_build_body": "Die Berechnung läuft auf diesem Telefon und dauert etwa 5–25 Minuten. Sie können die App verlassen; der Vorgang läuft weiter.",
+    "recon_build": "Modell erstellen", "recon_building": "3D-Modell wird erstellt",
+    "recon_placed_detail": "%1$s · %2$d von %3$d Fotos verwendet",
+    "recon_ready_stats": "Dauer: %1$s · verwendete Fotos: %2$d von %3$d · Punkte: %4$s",
+    "recon_ready_gaps": "%1$d Fotos konnten nicht zugeordnet werden (möglicherweise wegen glatter oder glänzender Flächen). Dort kann das Modell Lücken aufweisen.",
+    "recon_minutes_seconds": "%1$d Min. %2$d Sek.", "recon_seconds": "%1$d Sek.",
+    "recon_err_unsupported": "Der Prozessor dieses Telefons wird für die Modellrekonstruktion nicht unterstützt.",
+    "recon_err_tap": "Das angetippte Objekt stimmt nicht mit dem Objekt überein, das auf den Fotos im Mittelpunkt steht. Starten Sie eine neue Aufnahme und tippen Sie auf das Objekt, das Sie umrunden.",
+    "recon_err_interrupted": "Die Modellrekonstruktion wurde unerwartet beendet. Versuchen Sie es erneut.",
+    "recon_review_switch": "Begrenzungsrahmen vor dem Erstellen prüfen",
+    "recon_review_switch_body": "Aus: Die App bestimmt den Rahmen automatisch und erstellt das Modell ohne Unterbrechung. Ein: Nach dem Zuordnen der Fotos wird angehalten, damit Sie den Rahmen prüfen können.",
+    "recon_review_notification": "Fotos zugeordnet. Tippen Sie hier, um den Rahmen zu prüfen und fortzufahren.",
+    "recon_review_photo": "Foto %1$d von %2$d",
+    "recon_review_unavailable": "Der Begrenzungsrahmen kann auf diesen Fotos nicht angezeigt werden.",
+    "size_row_height": "Höhe %1$s", "size_row_width": "Breite %1$s",
+    "size_body_height": "Von der Standfläche bis zum höchsten Punkt des Objekts. Ein ungefährer Wert genügt.",
+    "size_body_width": "An der breitesten Stelle des Objekts, von oben gesehen. Ein ungefährer Wert genügt.",
+    "size_axis_height": "Höhe", "size_axis_width": "Breite",
+    "size_follow_height": "Breite und Tiefe werden anhand der Fotos berechnet.",
+    "size_follow_width": "Höhe und Tiefe werden anhand der Fotos berechnet.",
+    "size_value_label": "Größe", "size_error_range": "Geben Sie eine Größe zwischen %1$s und %2$s ein.",
+    "size_failed": "Die Größe konnte nicht übernommen werden. Versuchen Sie es erneut.",
+    "recon_preview_description": "Vorschau des erstellten Modells",
+    "export_glb": "GLB", "export_obj": "OBJ (.zip)",
+    "export_about_size": "ca. %1$s",
+    "export_sized": "In realer Größe gespeichert.",
+    "export_unsized": "Für dieses Modell ist noch keine reale Größe festgelegt. Fügen Sie eine Größe hinzu, um im realen Maßstab zu exportieren.",
+    "export_no_app": "Auf diesem Telefon ist keine App zum Öffnen dieses Dateityps installiert."
+})

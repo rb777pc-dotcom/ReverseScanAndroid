@@ -1378,6 +1378,22 @@ translate("app/src/main/res/values/strings_info.xml", {
 print("Applied save verification, partial SfM recovery, stronger object reacquisition, faster auto shutter, visible capture ZIP import, and Russian app information.")
 
 
+# Show the ReverseScan product author separately from upstream and third-party component credits.
+credits_anchor = '''                        InfoPage.CREDITS -> CREDITS.forEach { c ->
+                            Body("•  \\"${c.name}\\" by ${c.author} (${c.url}) = ${stringResource(c.use)}")
+                        }'''
+credits_replacement = '''                        InfoPage.CREDITS -> {
+                            Body("Автор и разработчик ReverseScan 3D: Richard Bähr")
+                            CREDITS.forEach { c ->
+                                Body("•  \\"${c.name}\\" by ${c.author} (${c.url}) = ${stringResource(c.use)}")
+                            }
+                        }'''
+info_pages = ROOT / "app/src/main/java/app/strata3d/ui/InfoPages.kt"
+info_text = info_pages.read_text()
+if credits_anchor not in info_text:
+    raise SystemExit("Credits page anchor changed; refusing unsafe edit")
+info_pages.write_text(info_text.replace(credits_anchor, credits_replacement, 1))
+
 # When resuming an imported/interrupted capture, let the user tap the object again
 # and persist that fresh image-space anchor; the old tap belongs to the old camera view.
 replace_once(

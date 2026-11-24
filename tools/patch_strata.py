@@ -2131,6 +2131,18 @@ if "override fun attachBaseContext" not in capture_source:
     )
 capture_activity.write_text(capture_source)
 
+# Reconstruction runs in a separate process; wrap its service context too so progress
+# notifications follow the language selected in the app.
+service_path = ROOT / "app/src/main/java/app/strata3d/capture/recon/ReconService.kt"
+service_source = service_path.read_text()
+if "override fun attachBaseContext" not in service_source:
+    service_source = service_source.replace(
+        "class ReconService : Service() {",
+        "class ReconService : Service() {\n\n    override fun attachBaseContext(newBase: android.content.Context) {\n        super.attachBaseContext(app.strata3d.LocalePreferences.wrap(newBase))\n    }",
+        1,
+    )
+service_path.write_text(service_source)
+
 viewer_path = ROOT / "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
 viewer_source = viewer_path.read_text()
 if "onChangeLanguage: (String) -> Unit" not in viewer_source:

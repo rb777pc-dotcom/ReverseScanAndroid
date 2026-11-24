@@ -1565,10 +1565,7 @@ if 'name="capture_library_import"' not in st:
 strings.write_text(st)
 
 # Keep the app consistently dark and use the electric-blue identity in system bars.
-themes = ROOT / "app/src/main/res/values/themes.xml"
-if themes.exists():
-    th = themes.read_text().replace('Theme.Strata', 'Theme.ReverseScan')
-    themes.write_text(th)
+# Keep upstream style resource identifiers intact: MainActivity references them by R.style.
 colors = ROOT / "app/src/main/res/values/colors.xml"
 if colors.exists():
     col = colors.read_text().replace('#ECEFF3', '#080D19').replace('#1C1D21', '#080D19').replace('#FFFFFF', '#080D19')

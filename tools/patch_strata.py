@@ -1751,4 +1751,11 @@ if old_mark not in vs:
 vs = vs.replace(old_mark, new_mark, 1)
 viewer.write_text(vs)
 
+# Match the live camera controls to the ReverseScan blue/cyan palette.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureScreen.kt",
+    "private val Cyan = Color(0xFF01B2C6)\nprivate val OnCyan = Color(0xFF00252A)\nprivate val Teal = Color(0xFF5DCAA5)",
+    "private val Cyan = Color(0xFF2F80FF)\nprivate val OnCyan = Color(0xFF071426)\nprivate val Teal = Color(0xFF38DDF2)"
+)
+
 print("Applied ReverseScan dashboard, Russian labels, navy/electric-blue theme and the original RB app emblem.")

@@ -41,12 +41,25 @@ jobs:
 
       - name: Install Android build components
         run: |
-          sdkmanager --install "platform-tools" "platforms;android-37.2" "build-tools;36.0.0" "ndk;29.0.14206865" "cmake;3.22.1"
+          sdkmanager --install "platform-tools" "platforms;android-35" "platforms;android-37.2" "build-tools;36.0.0" "ndk;29.0.14206865" "cmake;3.22.1"
           yes | sdkmanager --licenses
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
           echo "$ANDROID_HOME/cmake/3.22.1/bin" >> "$GITHUB_PATH"
           df -h
+
+      # Build the actual ReverseScan application in the repository root as well.
+      # The upstream Strata checkout below is a separate reconstruction engine/UI.
+      - name: Set up Gradle for native ReverseScan app
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Test and build ReverseScan app (not upstream Strata)
+        run: |
+          gradle testDebugUnitTest
+          gradle assembleDebug
+          ls -lh app/build/outputs/apk/debug/
 
       - name: Install native build tools
         timeout-minutes: 12
@@ -128,6 +141,15 @@ jobs:
           ./gradlew testDebugUnitTest
           ./gradlew assembleDebug
           ls -lh app/build/outputs/apk/debug/
+
+      - name: Upload native ReverseScan APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReverseScan-native
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload full scanner APK
         if: always()

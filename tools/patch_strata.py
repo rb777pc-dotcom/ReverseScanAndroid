@@ -1952,6 +1952,186 @@ for gradle_file in version_targets:
 if ROOT / "app/build.gradle.kts" not in version_targets or not (ROOT / "app/build.gradle.kts").is_file():
     raise SystemExit("Full scanner Gradle version file was not found")
 
+
+# Persistent in-app language selection. The locale wrapper is applied to both
+# activities so the viewer, camera, reconstruction and all dialogs use one language.
+locale_source = ROOT / "app/src/main/java/app/strata3d/LocalePreferences.kt"
+locale_source.parent.mkdir(parents=True, exist_ok=True)
+locale_source.write_text("""package app.strata3d
+
+import android.content.Context
+import android.content.res.Configuration
+import java.util.Locale
+
+object LocalePreferences {
+    private const val PREFS = "reversescan_preferences"
+    private const val KEY_LANGUAGE = "language"
+    const val DEFAULT_LANGUAGE = "ru"
+
+    fun selected(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+
+    fun save(context: Context, language: String) {
+        require(language in setOf("ru", "en", "de"))
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(KEY_LANGUAGE, language).apply()
+    }
+
+    fun wrap(context: Context): Context {
+        val locale = Locale.forLanguageTag(selected(context))
+        Locale.setDefault(locale)
+        val configuration = Configuration(context.resources.configuration)
+        configuration.setLocale(locale)
+        configuration.setLayoutDirection(locale)
+        return context.createConfigurationContext(configuration)
+    }
+}
+""")
+
+main_activity = ROOT / "app/src/main/java/app/strata3d/MainActivity.kt"
+main_source = main_activity.read_text()
+if "override fun attachBaseContext" not in main_source:
+    main_source = main_source.replace(
+        "class MainActivity : ComponentActivity() {",
+        "class MainActivity : ComponentActivity() {\n\n    override fun attachBaseContext(newBase: android.content.Context) {\n        super.attachBaseContext(LocalePreferences.wrap(newBase))\n    }",
+        1,
+    )
+if "onChangeLanguage =" not in main_source:
+    main_source = main_source.replace(
+        "                    onToggleTheme = {",
+        "                    onChangeLanguage = { language ->\n                        LocalePreferences.save(this@MainActivity, language)\n                        recreate()\n                    },\n                    onToggleTheme = {",
+        1,
+    )
+if "onChangeLanguage =" not in main_source:
+    raise SystemExit("Could not add language callback to MainActivity")
+main_activity.write_text(main_source)
+
+capture_activity = ROOT / "app/src/main/java/app/strata3d/capture/ui/CaptureActivity.kt"
+capture_source = capture_activity.read_text()
+if "override fun attachBaseContext" not in capture_source:
+    capture_source = capture_source.replace(
+        "class CaptureActivity : ComponentActivity() {",
+        "class CaptureActivity : ComponentActivity() {\n\n    override fun attachBaseContext(newBase: android.content.Context) {\n        super.attachBaseContext(app.strata3d.LocalePreferences.wrap(newBase))\n    }",
+        1,
+    )
+capture_activity.write_text(capture_source)
+
+viewer_path = ROOT / "app/src/main/java/app/strata3d/ui/ViewerScreen.kt"
+viewer_source = viewer_path.read_text()
+if "onChangeLanguage: (String) -> Unit" not in viewer_source:
+    viewer_source = viewer_source.replace(
+        "    onToggleTheme: () -> Unit,",
+        "    onToggleTheme: () -> Unit,\n    onChangeLanguage: (String) -> Unit = {},",
+        1,
+    )
+    viewer_source = viewer_source.replace(
+        "            onOpenCapture = { onOpenCapture(false) },",
+        "            onOpenCapture = { onOpenCapture(false) },\n            onChangeLanguage = onChangeLanguage,",
+        1,
+    )
+    viewer_source = viewer_source.replace(
+        "    onOpenCapture: () -> Unit,\n) {",
+        "    onOpenCapture: () -> Unit,\n    onChangeLanguage: (String) -> Unit,\n) {",
+        1,
+    )
+if "var showLanguagePicker" not in viewer_source:
+    viewer_source = viewer_source.replace(
+        "    var infoPage by remember { mutableStateOf<InfoPage?>(null) }",
+        "    var infoPage by remember { mutableStateOf<InfoPage?>(null) }\n    var showLanguagePicker by remember { mutableStateOf(false) }",
+        1,
+    )
+    viewer_source = viewer_source.replace(
+        "                    HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 16.dp))\n                    listOf(\n                        InfoPage.SUPPORT",
+        """                    HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 16.dp))
+                    PanelItem(
+                        icon = Icons.Outlined.Language,
+                        label = stringResource(R.string.language_title),
+                        onClick = { showLanguagePicker = true },
+                    )
+                    listOf(
+                        InfoPage.SUPPORT""",
+        1,
+    )
+    # Put the language dialog at the end of SettingsPanel's composition.
+    marker = """                    }.forEach { (page, icon) ->
+                        PanelItem(icon = icon, label = stringResource(page.title), onClick = { infoPage = page })
+                    }
+                }
+            }
+        }
+    }
+}"""
+    replacement = """                    }.forEach { (page, icon) ->
+                        PanelItem(icon = icon, label = stringResource(page.title), onClick = { infoPage = page })
+                    }
+                }
+            }
+        }
+    }
+    if (showLanguagePicker) {
+        val context = LocalContext.current
+        val selectedLanguage = app.strata3d.LocalePreferences.selected(context)
+        AlertDialog(
+            onDismissRequest = { showLanguagePicker = false },
+            title = { Text(stringResource(R.string.language_title)) },
+            text = {
+                Column {
+                    listOf(
+                        "ru" to stringResource(R.string.language_russian),
+                        "en" to stringResource(R.string.language_english),
+                        "de" to stringResource(R.string.language_german),
+                    ).forEach { (tag, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                showLanguagePicker = false
+                                if (tag != selectedLanguage) onChangeLanguage(tag)
+                            }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = selectedLanguage == tag, onClick = {
+                                showLanguagePicker = false
+                                if (tag != selectedLanguage) onChangeLanguage(tag)
+                            })
+                            Text(label, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLanguagePicker = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        )
+    }
+}"""
+    if marker not in viewer_source:
+        raise SystemExit("SettingsPanel end anchor missing for language dialog")
+    viewer_source = viewer_source.replace(marker, replacement, 1)
+    # Ensure required Compose imports exist.
+    imports = [
+        "import androidx.compose.material3.AlertDialog",
+        "import androidx.compose.material3.RadioButton",
+        "import androidx.compose.material3.TextButton",
+    ]
+    for imp in imports:
+        if imp not in viewer_source:
+            viewer_source = viewer_source.replace("import androidx.compose.material3.", imp + "\nimport androidx.compose.material3.", 1)
+    if "import androidx.compose.material.icons.outlined.Language" not in viewer_source:
+        viewer_source = viewer_source.replace("import androidx.compose.material.icons.outlined.", "import androidx.compose.material.icons.outlined.Language\nimport androidx.compose.material.icons.outlined.", 1)
+viewer_path.write_text(viewer_source)
+
+# Language selector labels exist in every locale. Russian is the current default UI;
+# English strings are supplied by the upstream base pack, and German receives its
+# own translated resource files below.
+translate("app/src/main/res/values/strings.xml", {
+    "language_title": "Язык приложения",
+    "language_russian": "Русский",
+    "language_english": "English",
+    "language_german": "Deutsch",
+})
+
 # Final Russian product description and app-specific help. Keep the roadmap explicitly
 # separate from features available in this build; do not advertise planned work as shipped.
 translate("app/src/main/res/values/strings_info.xml", {

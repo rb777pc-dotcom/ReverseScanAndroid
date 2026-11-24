@@ -1404,3 +1404,131 @@ replace_once(
     "                            if (!_state.value.paused) shutter.setPaused(true)\n",
     ""
 )
+
+
+# Open a textured GLB rather than the OBJ geometry alone; OBJ drops the MTL/photo textures.
+replace_once("app/src/main/java/app/strata3d/capture/ui/CaptureSummaryScreen.kt",
+"""                onOpen = {
+                    val model = java.io.File(capture.dir, recon?.model ?: return@BuildModelCard)
+                    context.startActivity(
+                        android.content.Intent(context, app.strata3d.MainActivity::class.java)
+                            .putExtra(app.strata3d.MainActivity.EXTRA_MODEL_PATH, model.path)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    )
+                },""",
+"""                onOpen = {
+                    val modelDir = java.io.File(capture.dir, "model")
+                    scope.launch {
+                        val glb = withContext(Dispatchers.IO) {
+                            runCatching {
+                                val outDir = java.io.File(context.filesDir, "opened-models").apply { mkdirs() }
+                                java.io.File(outDir, capture.id + ".glb").also { file ->
+                                    file.outputStream().use { out ->
+                                        app.strata3d.capture.recon.ModelExport.write(modelDir, app.strata3d.capture.recon.ModelExport.Format.GLB, out) { true }
+                                    }
+                                }
+                            }.getOrNull()
+                        }
+                        if (glb?.isFile == true) context.startActivity(
+                            android.content.Intent(context, app.strata3d.MainActivity::class.java)
+                                .putExtra(app.strata3d.MainActivity.EXTRA_MODEL_PATH, glb.path)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                        ) else snackbar.showSnackbar("Не удалось подготовить цветную модель для просмотра")
+                    }
+                },""")
+replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
+    "import androidx.activity.compose.BackHandler",
+    "import androidx.activity.compose.BackHandler\nimport androidx.compose.material.icons.automirrored.outlined.ArrowBack")
+replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
+    "    val model = state.model\n\n    Box(Modifier.fillMaxSize()) {",
+    "    val model = state.model\n    BackHandler(enabled = model != null) { viewModel.closeModel() }\n\n    Box(Modifier.fillMaxSize()) {")
+replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
+"""                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {""",
+"""                        navigationIcon = {
+                            if (model != null) IconButton(onClick = { viewModel.closeModel() }) {
+                                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.recent_back))
+                            }
+                        },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {""")
+
+# Safe import of capture ZIP archives produced by CaptureExport.
+p = ROOT / "app/src/main/java/app/strata3d/capture/format/CaptureImport.kt"
+p.write_text("""package app.strata3d.capture.format
+import java.io.File
+import java.io.InputStream
+import java.util.UUID
+import java.util.zip.ZipInputStream
+object CaptureImport {
+    fun importZip(input: InputStream, store: CaptureStore): StoredCapture {
+        val staging = File(store.root.parentFile, ".capture-import-" + UUID.randomUUID())
+        staging.mkdirs()
+        try {
+            ZipInputStream(input.buffered()).use { zip ->
+                val buf = ByteArray(131072); var total = 0L; var count = 0
+                while (true) {
+                    val e = zip.nextEntry ?: break
+                    require(++count <= 100000) { "Too many archive entries" }
+                    val target = File(staging, e.name).canonicalFile
+                    require(target.path.startsWith(staging.canonicalPath + File.separator) || target == staging.canonicalFile) { "Invalid archive path" }
+                    if (e.isDirectory) target.mkdirs() else {
+                        target.parentFile?.mkdirs()
+                        target.outputStream().buffered().use { out ->
+                            while (true) { val n = zip.read(buf); if (n < 0) break; total += n
+                                require(total <= 5L * 1024 * 1024 * 1024) { "Archive too large" }; out.write(buf, 0, n) }
+                        }
+                    }
+                    zip.closeEntry()
+                }
+            }
+            val manifest = store.readManifest(staging)
+            val frames = store.readFrames(staging)
+            require(frames.isNotEmpty() && File(staging, "images").isDirectory) { "Archive has no valid photos" }
+            val created = store.create(manifest.copy(frameCount = frames.size))
+            staging.walkTopDown().filter { it.isFile && it.name != "manifest.json" }.forEach { src ->
+                val dst = File(created.dir, src.relativeTo(staging).path); dst.parentFile?.mkdirs(); src.copyTo(dst, overwrite = true)
+            }
+            store.writeManifest(created.dir, manifest.copy(id = created.id, frameCount = frames.size, updatedAt = System.currentTimeMillis()))
+            return store.list().first { it.id == created.id }
+        } finally { staging.deleteRecursively() }
+    }
+}
+""")
+replace_once("app/src/main/java/app/strata3d/capture/ui/CaptureLibraryViewModel.kt",
+"    /** A small thumbnail of the capture's first photo (decoded once, sub-sampled). */",
+"""    fun importZip(uri: Uri) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val input = getApplication<Application>().contentResolver.openInputStream(uri) ?: return@withContext false
+                    input.use { app.strata3d.capture.format.CaptureImport.importZip(it, store) }; true
+                } catch (e: Exception) { android.util.Log.e("CaptureLibrary", "import", e); false }
+            }
+            refresh()
+            _messages.value = if (ok) app.strata3d.R.string.capture_imported else app.strata3d.R.string.capture_import_failed
+        }
+    }
+
+    /** A small thumbnail of the capture's first photo (decoded once, sub-sampled). */""")
+replace_once("app/src/main/java/app/strata3d/capture/ui/CaptureLibraryScreen.kt",
+"    val exporter = rememberCaptureExporter(viewModel)",
+"""    val exporter = rememberCaptureExporter(viewModel)
+    val importCapture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importZip) }""")
+replace_once("app/src/main/java/app/strata3d/capture/ui/CaptureLibraryScreen.kt",
+"""                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.capture_device_report)) },""",
+"""                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.capture_import)) },
+                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null) },
+                            onClick = { menuOpen = false; importCapture.launch(arrayOf("application/zip", "application/octet-stream")) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.capture_device_report)) },""")
+translate("app/src/main/res/values/strings_capture.xml", {
+    "capture_import": "Импортировать съёмку (.zip)",
+    "capture_imported": "Съёмка импортирована",
+    "capture_import_failed": "Не удалось импортировать архив съёмки",
+})

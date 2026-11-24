@@ -1503,7 +1503,7 @@ if "import androidx.compose.ui.unit.sp" not in vs:
     package_line = next((line for line in vs.splitlines() if line.startswith("package ")), None)
     if package_line is None:
         raise SystemExit("ViewerScreen package declaration missing")
-    vs = vs.replace(package_line, package_line + "\\n\\nimport androidx.compose.ui.unit.sp", 1)
+    vs = vs.replace(package_line, package_line + "\n\nimport androidx.compose.ui.unit.sp", 1)
 old_empty = """@Composable
 private fun EmptyState(onOpen: () -> Unit, onCapture: () -> Unit, modifier: Modifier = Modifier) {
     Column(

@@ -1,4 +1,4 @@
-name: Build Strata 3D scanner (full native) # revision 9
+name: Build ReverseScan 3D scanner (full native) # branding audit
 
 on:
   push:

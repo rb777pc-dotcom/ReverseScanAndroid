@@ -1458,7 +1458,6 @@ replace_once(
                         }''',
     '''                        val lockedId = selectedObjectTrackingId
                         val previousBox = lastObjectBox
-                        val previousBox = lastObjectBox
                         val target = when {
                             selectedTap == null -> objects.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
                             lockedId != null -> objects.firstOrNull { it.trackingId == lockedId } ?: nearestPrevious

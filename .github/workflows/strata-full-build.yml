@@ -1,4 +1,4 @@
-name: Build Strata 3D scanner (full native) # revision 7
+name: Build Strata 3D scanner (full native) # revision 8
 
 on:
   push:
@@ -60,7 +60,11 @@ jobs:
           ninja --version
 
       - name: Apply scanner reliability and Russian UI fixes
-        run: python3 tools/patch_strata.py
+        run: |
+          python3 tools/patch_strata.py
+          # The patched title uses a fractional letter-spacing extension not imported
+          # by the upstream ViewerScreen; remove only that cosmetic argument.
+          sed -i '/letterSpacing = 0.15.sp,/d' strata/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
 
       - name: Adapt upstream native scripts for Linux runner
         working-directory: strata
@@ -74,7 +78,6 @@ jobs:
               s = s.replace('"-DCMAKE_MAKE_PROGRAM=$CM/ninja.exe"', '"-DCMAKE_MAKE_PROGRAM=ninja"')
               s = s.replace('"$CM/cmake"', 'cmake')
               p.write_text(s)
-          # JPEG XL is optional in OpenMVS; make pkg-config lookup optional for Android.
           p = Path("tools/recon/openmvs/build_openmvs.sh")
           s = p.read_text()
           needle = "clone https://github.com/cdcseacave/openMVS.git openmvs v2.4.0"
@@ -100,8 +103,6 @@ jobs:
           tools/recon/openmvs/build_openmvs.sh
           df -h
 
-      # Reuse the same debug certificate between CI builds so Android can update the app
-      # without requiring uninstall (and therefore without erasing the app's private captures).
       - name: Restore stable debug signing key
         uses: actions/cache@v4
         with:
@@ -124,7 +125,7 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
-          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > local.properties
           ./gradlew testDebugUnitTest
           ./gradlew assembleDebug
           ls -lh app/build/outputs/apk/debug/

@@ -1453,3 +1453,5 @@ replace_once("app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {""")
 
+
+# Rebuild the corrected source patch set.

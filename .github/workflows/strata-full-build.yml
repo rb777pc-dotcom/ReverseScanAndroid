@@ -49,7 +49,7 @@ jobs:
           df -h
 
       # Build the actual ReverseScan application in the repository root as well.
-      # The upstream Strata checkout below is a separate reconstruction engine/UI.
+      # Apply the full ReverseScan identity sweep and verify every app source file before packaging.
       - name: Set up Gradle for native ReverseScan app
         uses: gradle/actions/setup-gradle@v4
         with:

@@ -2157,7 +2157,11 @@ translate("app/src/main/res/values-en/strings_capture.xml", {
     "capture_torch_off": "Torch OFF", "capture_coverage_title": "Viewpoint coverage",
     "capture_coverage_done": "Turquoise sector — viewpoint captured",
     "capture_coverage_missing": "Grey sector — viewpoint still needed",
-    "capture_coverage_bottom": "Capture the underside separately by turning the object over"
+    "capture_coverage_bottom": "Capture the underside separately by turning the object over",
+    "capture_guide_title": "Walk around the object",
+    "capture_guide_body": "Keep the object centred in the frame. Smart capture takes a photo when the viewpoint changes and the phone becomes steady. Tilt the camera slightly down for higher viewpoints. The indicator shows viewpoint coverage based on phone tilt; it does not measure which surface areas were photographed.",
+    "capture_guide_done": "Turquoise — captured",
+    "capture_guide_missing": "Grey — not captured yet"
 })
 translate("app/src/main/res/values-de/strings_capture.xml", {
     "capture_import": "Aufnahme-ZIP importieren", "capture_import_short": "ZIP importieren",
@@ -2165,7 +2169,11 @@ translate("app/src/main/res/values-de/strings_capture.xml", {
     "capture_torch_off": "Taschenlampe AUS", "capture_coverage_title": "Blickwinkel-Abdeckung",
     "capture_coverage_done": "Türkis — Blickwinkel aufgenommen",
     "capture_coverage_missing": "Grau — Blickwinkel fehlt noch",
-    "capture_coverage_bottom": "Die Unterseite separat aufnehmen, indem Sie das Objekt umdrehen"
+    "capture_coverage_bottom": "Die Unterseite separat aufnehmen, indem Sie das Objekt umdrehen",
+    "capture_guide_title": "Gehen Sie um das Objekt herum",
+    "capture_guide_body": "Halten Sie das Objekt in der Mitte des Bildes. Die automatische Aufnahme erstellt ein Foto, wenn sich der Blickwinkel ändert und das Telefon kurz ruhig gehalten wird. Für höhere Blickwinkel die Kamera leicht nach unten neigen. Die Anzeige zeigt die Blickwinkel-Abdeckung anhand der Neigung des Telefons; sie misst nicht die tatsächlich fotografierten Oberflächenbereiche.",
+    "capture_guide_done": "Türkis — aufgenommen",
+    "capture_guide_missing": "Grau — noch nicht aufgenommen"
 })
 # Persistent in-app language selection. The locale wrapper is applied to both
 # activities so the viewer, camera, reconstruction and all dialogs use one language.

@@ -2413,7 +2413,7 @@ replace_once(
                                     val bottom = (b.bottom.toFloat() / rotatedHeight).coerceIn(0f, 1f)
                                     val area = ((right - left) * (bottom - top)).coerceAtLeast(0.0001f)
                                     if (previousBox == null) {
-                                        // Initial selection: the user's tap must land inside the detected object,
+                                        // Initial selection: the selected tap must land inside the detected object,
                                         // allowing only a very small tolerance for detector-box rounding.
                                         val margin = 0.015f
                                         if (tapU >= left - margin && tapU <= right + margin &&

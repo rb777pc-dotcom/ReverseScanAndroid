@@ -1685,36 +1685,70 @@ if colors_path.exists():
     colors = colors_path.read_text().replace("#ECEFF3", "#080E1A").replace("#1C1D21", "#080E1A").replace("#FFFFFF", "#080E1A")
     colors_path.write_text(colors)
 
-# A restrained temporary scan-frame launcher glyph; the official RB emblem is not fabricated.
+# Install the user's original RB emblem extracted from the saved ReverseScan brand kit.
+import base64
+brand_source = Path(__file__).resolve().parent.parent / "assets/reversescan_rb_icon.webp.b64"
+if not brand_source.is_file():
+    raise SystemExit("Original ReverseScan RB icon asset is missing")
+brand_bytes = base64.b64decode("".join(brand_source.read_text().split()), validate=True)
+if len(brand_bytes) < 1000 or brand_bytes[:4] != b"RIFF" or brand_bytes[8:12] != b"WEBP":
+    raise SystemExit("Original ReverseScan RB icon is invalid")
+expected_size = int.from_bytes(brand_bytes[4:8], "little") + 8
+if len(brand_bytes) != expected_size:
+    raise SystemExit(f"Original ReverseScan RB icon length mismatch: {len(brand_bytes)} != {expected_size}")
+res = ROOT / "app/src/main/res"
+(res / "drawable-nodpi").mkdir(parents=True, exist_ok=True)
+(res / "mipmap-nodpi").mkdir(parents=True, exist_ok=True)
+(res / "drawable-nodpi/reversescan_rb_icon.webp").write_bytes(brand_bytes)
+(res / "mipmap-nodpi/ic_launcher.webp").write_bytes(brand_bytes)
+
 manifest = ROOT / "app/src/main/AndroidManifest.xml"
 manifest_text = manifest.read_text()
 manifest_text = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', manifest_text, count=1)
-if "android:roundIcon=" not in manifest_text:
+if "android:roundIcon=" in manifest_text:
+    manifest_text = re.sub(r'android:roundIcon="[^"]+"', 'android:roundIcon="@mipmap/ic_launcher"', manifest_text, count=1)
+else:
     manifest_text = manifest_text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"', 1)
 manifest.write_text(manifest_text)
 
-res = ROOT / "app/src/main/res"
-(res / "mipmap-anydpi-v26").mkdir(parents=True, exist_ok=True)
-(res / "drawable").mkdir(parents=True, exist_ok=True)
-(res / "values/colors_brand.xml").write_text("""<resources>
-    <color name="brand_night">#080E1A</color>
-</resources>
-""")
-(res / "drawable/ic_launcher_foreground.xml").write_text("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#00000000" android:strokeColor="#2F80FF"
-        android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M23,38 L23,23 L38,23 M70,23 L85,23 L85,38 M85,70 L85,85 L70,85 M38,85 L23,85 L23,70" />
-    <path android:fillColor="#00000000" android:strokeColor="#38DDF2"
-        android:strokeWidth="4" android:strokeLineCap="round"
-        android:pathData="M36,54 L48,66 L73,41" />
-</vector>
-""")
-(res / "mipmap-anydpi-v26/ic_launcher.xml").write_text("""<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/brand_night" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
-</adaptive-icon>
-""")
-print("Applied ReverseScan dashboard, Russian labels, navy/electric-blue theme, and removed the damaged legacy logo dependency.")
+# Use the actual RB artwork in the app bar and the home dashboard.
+vs = viewer.read_text()
+old_title = """                            Text(
+                                text = model?.fileName ?: stringResource(R.string.app_name),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.15.sp,
+                            )"""
+new_title = """                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (model == null) {
+                                    Image(
+                                        painter = painterResource(R.drawable.reversescan_rb_icon),
+                                        contentDescription = stringResource(R.string.app_name),
+                                        modifier = Modifier.size(36.dp),
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                }
+                                Text(
+                                    text = model?.fileName ?: stringResource(R.string.app_name),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.15.sp,
+                                )
+                            }"""
+if old_title not in vs:
+    raise SystemExit("ReverseScan title anchor missing when applying RB artwork")
+vs = vs.replace(old_title, new_title, 1)
+old_mark = "Icon(Icons.Outlined.ViewInAr, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(30.dp))"
+new_mark = """Image(
+                            painter = painterResource(R.drawable.reversescan_rb_icon),
+                            contentDescription = stringResource(R.string.app_name),
+                            modifier = Modifier.size(44.dp),
+                        )"""
+if old_mark not in vs:
+    raise SystemExit("ReverseScan home mark anchor missing")
+vs = vs.replace(old_mark, new_mark, 1)
+viewer.write_text(vs)
+
+print("Applied ReverseScan dashboard, Russian labels, navy/electric-blue theme and the original RB app emblem.")

@@ -1925,6 +1925,14 @@ manifest_text, icon_count = re.subn(
 )
 if icon_count != 1:
     raise SystemExit("Could not replace the upstream launcher icon reference")
+manifest_text, round_count = re.subn(
+    r'android:roundIcon="@mipmap/ic_launcher"',
+    'android:roundIcon="@drawable/reversescan_app_icon"',
+    manifest_text,
+    count=1,
+)
+if round_count != 1:
+    raise SystemExit("Could not replace the round launcher icon reference")
 manifest.write_text(manifest_text)
 
 # The app's displayed version is derived from Android package metadata. Bump both

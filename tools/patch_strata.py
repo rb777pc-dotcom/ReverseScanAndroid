@@ -1349,9 +1349,9 @@ library_path.write_text(library_text)
 # help and credit descriptions, and keep legally required upstream attribution.
 translate("app/src/main/res/values/strings_info.xml", {
     "support_body": "Обратная связь по ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid",
-    "about_body": "ReverseScan 3D — приложение для сканирования предметов и просмотра трёхмерных моделей непосредственно на телефоне. Делайте фотосъёмку объекта, стройте 3D-модель, открывайте STL, OBJ, PLY, 3MF, glTF и GLB. Фотографии и проекты хранятся на устройстве; отправка выполняется только по вашему запросу.",
-    "about_thanks": "Сведения об используемых открытых компонентах и их авторах приведены в разделе «Авторы и компоненты».",
-    "license_copyright": "Исходный проект Strata:3D — David Morales. ReverseScan 3D содержит модификации исходного проекта.",
+    "about_body": "ReverseScan 3D — приложение для сканирования предметов, построения цветных 3D-моделей и просмотра готовых моделей. Автор и разработчик приложения: Richard Bähr.",
+    "about_thanks": "Richard Bähr — автор и разработчик ReverseScan 3D.",
+    "license_copyright": "ReverseScan 3D: автор и разработчик Richard Bähr. Исходный проект Strata:3D: David Morales; его обязательные авторские уведомления сохранены.",
     "license_body": "ReverseScan 3D основано на открытом проекте Strata:3D и распространяется с учётом условий GNU AGPL версии 3. Авторские права и уведомления исходного проекта сохранены. Исходный код модификаций ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid. Сведения о сторонних библиотеках и их лицензиях приведены в разделе «Авторы и компоненты» и в уведомлениях.",
     "help_body": "РАБОТА С 3D-МОДЕЛЯМИ\\n1. На главном экране нажмите «Открыть 3D-модель» и выберите файл в памяти телефона. Также можно открыть модель через меню «Поделиться» или «Открыть с помощью» в файловом менеджере.\\n2. Поддерживаются STL, OBJ, PLY, 3MF, glTF и GLB, а также ZIP-архивы с поддерживаемой моделью.\\n3. Перетаскивайте одним пальцем для вращения, двумя пальцами для перемещения; сведением и разведением пальцев меняйте масштаб.\\n4. Панель видов переключает перспективу, ортографический вид, вид сверху, спереди, сбоку и изометрию. Команда «По размеру» помещает модель целиком в окно.\\n5. Инструменты позволяют измерять расстояния, делать сечение, проверять сетку и сохранять снимок экрана.\\n\\nСЪЁМКА ПРЕДМЕТА\\n1. Откройте раздел «Съёмки» и нажмите «Новая съёмка». Разрешите доступ к камере.\\n2. Поставьте неподвижный предмет в ровно освещённое место. Лучше всего сканируются матовые поверхности с заметной фактурой. Избегайте бликов, стекла, зеркал и однотонных поверхностей.\\n3. Коснитесь предмета на экране, чтобы выбрать его. Дождитесь зелёной рамки отслеживания. Если рамка исчезла или стала оранжевой, верните предмет в центр кадра и дождитесь повторного захвата.\\n4. В режиме «Автосъёмка» медленно обходите предмет по кругу. Делайте небольшие шаги, на мгновение останавливая телефон на каждом новом ракурсе. Не закрывайте предмет рукой и не допускайте его выхода за края кадра. При необходимости переключитесь на ручной режим.\\n5. Сделайте полный круг на уровне середины предмета, затем дополнительные ракурсы сверху и снизу. Старайтесь сохранять перекрытие соседних фотографий. Для большинства предметов рекомендуется не менее 40 фотографий.\\n6. Нажмите «Готово», затем «Сохранить». Съёмка появится в разделе «Мои съёмки». Не удаляйте данные приложения, если хотите сохранить проекты.\\n\\nПОСТРОЕНИЕ МОДЕЛИ\\n1. Откройте сохранённую съёмку и нажмите «Построить 3D-модель». Построение выполняется на телефоне и может занять продолжительное время.\\n2. Сопоставление использует фотографии с разных ракурсов. Если часть кадров не сопоставлена, приложение попробует восстановить последовательную связь между соседними ракурсами. При достаточном количестве сопоставленных кадров построение может продолжиться с частичными данными.\\n3. После завершения откройте модель и проверьте её со всех сторон. Непроснятые участки могут остаться с отверстиями или неполной поверхностью.\\n4. Экспортируйте модель в GLB или OBJ для дальнейшей работы в 3D-редакторе.\\n\\nИМПОРТ И ВОССТАНОВЛЕНИЕ СЪЁМОК\\n1. В разделе «Мои съёмки» нажмите «Импортировать съёмку из ZIP» и выберите ZIP-архив, ранее экспортированный из ReverseScan 3D.\\n2. Импортированная съёмка появится в списке. Её можно открыть, построить модель или продолжить досъёмку.\\n3. Кнопка «Открыть 3D-модель» предназначена для импорта готовых файлов STL, OBJ, PLY, 3MF, glTF и GLB; это отдельная функция от импорта ZIP-съёмки.\\n\\nЕСЛИ ПОСТРОЕНИЕ НЕ УДАЛОСЬ\\n• Мало сопоставленных кадров: проверьте, что соседние фотографии перекрываются, предмет не смещался, а освещение и фактура достаточны.\\n• Предмет потерян при съёмке: коснитесь его повторно и дождитесь рамки отслеживания.\\n• Недостаточно памяти: закройте другие приложения и освободите место на телефоне.\\n• Однотонные, прозрачные и блестящие поверхности могут не содержать признаков, необходимых для фотограмметрии.",
     "credit_viewer": "основа 3D-просмотрщика",
@@ -1383,10 +1383,8 @@ credits_anchor = '''                        InfoPage.CREDITS -> CREDITS.forEach 
                             Body("•  \\"${c.name}\\" by ${c.author} (${c.url}) = ${stringResource(c.use)}")
                         }'''
 credits_replacement = '''                        InfoPage.CREDITS -> {
-                            Body("Автор и разработчик ReverseScan 3D: Richard Bähr")
-                            CREDITS.forEach { c ->
-                                Body("•  \\"${c.name}\\" by ${c.author} (${c.url}) = ${stringResource(c.use)}")
-                            }
+                            Body("Richard Bähr")
+                            Body("Автор и разработчик ReverseScan 3D")
                         }'''
 info_pages = ROOT / "app/src/main/java/app/strata3d/ui/InfoPages.kt"
 info_text = info_pages.read_text()
@@ -1781,3 +1779,34 @@ replace_once(
 )
 
 print("Applied ReverseScan dashboard, Russian labels, navy/electric-blue theme and the original RB app emblem.")
+
+# Restrict model pickers to formats accepted by ModelParser.
+replace_once(
+    "app/src/main/java/app/strata3d/ui/ViewerScreen.kt",
+    'val launchPicker = { openDocument.launch(arrayOf("*/*")) }',
+    'val launchPicker = { openDocument.launch(arrayOf("model/stl", "application/sla", "model/obj", "application/ply", "model/3mf", "application/vnd.ms-package.3dmanufacturing-3dmodel+xml", "model/gltf+json", "model/gltf-binary", "application/zip")) }'
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/ui/CaptureLibraryScreen.kt",
+    'onClick = { modelImporter.launch(arrayOf("*/*")) }',
+    'onClick = { modelImporter.launch(arrayOf("model/stl", "application/sla", "model/obj", "application/ply", "model/3mf", "application/vnd.ms-package.3dmanufacturing-3dmodel+xml", "model/gltf+json", "model/gltf-binary", "application/zip")) }'
+)
+
+# texrecon may emit JPEG texture images. GLB must embed them with the matching MIME
+# type; declaring JPEG bytes as image/png makes some viewers discard the photo colour.
+replace_once(
+    "app/src/main/java/app/strata3d/capture/recon/ModelExport.kt",
+    '        val imageViews = imageList.map { view(images.getValue(it), null) }',
+    '''        val imageViews = imageList.map { view(images.getValue(it), null) }
+        val imageMimeTypes = imageList.map { name ->
+            when (File(name).extension.lowercase(Locale.ROOT)) {
+                "jpg", "jpeg" -> "image/jpeg"
+                else -> "image/png"
+            }
+        }'''
+)
+replace_once(
+    "app/src/main/java/app/strata3d/capture/recon/ModelExport.kt",
+    '''                append("\\\"images\\\":[\${imageViews.joinToString(",") { "{\\\"bufferView\\\":\$it,\\\"mimeType\\\":\\\"image/png\\\"}" }}],")''',
+    '''                append("\\\"images\\\":[\${imageViews.indices.joinToString(",") { i -> "{\\\"bufferView\\\":\${imageViews[i]},\\\"mimeType\\\":\\\"\${imageMimeTypes[i]}\\\"}" }}],")'''
+)

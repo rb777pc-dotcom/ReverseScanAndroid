@@ -1474,11 +1474,13 @@ res = ROOT / "app/src/main/res"
 
 manifest = ROOT / "app/src/main/AndroidManifest.xml"
 manifest_text = manifest.read_text()
-manifest_text = manifest_text.replace(
-    '<application',
-    '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"',
-    1
-)
+manifest_text = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', manifest_text, count=1)
+if 'android:roundIcon=' not in manifest_text:
+    manifest_text = manifest_text.replace(
+        'android:icon="@mipmap/ic_launcher"',
+        'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"',
+        1
+    )
 manifest.write_text(manifest_text)
 
 # Replace the upstream viewer glyph with the supplied RB ReverseScan emblem.

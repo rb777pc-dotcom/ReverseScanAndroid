@@ -2168,7 +2168,7 @@ if "var showLanguagePicker" not in viewer_source:
         1,
     )
     viewer_source = viewer_source.replace(
-        "                    HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 16.dp))\n                    listOf(\n                        InfoPage.SUPPORT",
+        "                    HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 16.dp))\n                    listOf(\n                        InfoPage.HELP",
         """                    HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 16.dp))
                     PanelItem(
                         icon = Icons.Outlined.Language,
@@ -2233,6 +2233,8 @@ if "var showLanguagePicker" not in viewer_source:
             viewer_source = viewer_source.replace("import androidx.compose.material3.", imp + "\nimport androidx.compose.material3.", 1)
     if "import androidx.compose.material.icons.outlined.Language" not in viewer_source:
         viewer_source = viewer_source.replace("import androidx.compose.material.icons.outlined.", "import androidx.compose.material.icons.outlined.Language\nimport androidx.compose.material.icons.outlined.", 1)
+if "label = stringResource(R.string.language_title)" not in viewer_source:
+        raise SystemExit("Could not add language selector to SettingsPanel")
 viewer_path.write_text(viewer_source)
 
 # Language selector labels exist in every locale. Russian is the current default UI;

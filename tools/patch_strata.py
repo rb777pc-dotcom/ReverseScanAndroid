@@ -1349,7 +1349,8 @@ library_path.write_text(library_text)
 # help and credit descriptions, and keep legally required upstream attribution.
 translate("app/src/main/res/values/strings_info.xml", {
     "support_body": "Обратная связь по ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid",
-    "about_body": "ReverseScan 3D — приложение для сканирования предметов, построения цветных 3D-моделей и просмотра готовых моделей. Автор и разработчик приложения: Richard Bähr.",
+    "info_credits": "Автор приложения",
+    "about_body": "ReverseScan 3D — приложение для сканирования предметов, построения цветных 3D-моделей и просмотра готовых моделей непосредственно на телефоне.",
     "about_thanks": "Richard Bähr — автор и разработчик ReverseScan 3D.",
     "license_copyright": "ReverseScan 3D: автор и разработчик Richard Bähr. Исходный проект Strata:3D: David Morales; его обязательные авторские уведомления сохранены.",
     "license_body": "ReverseScan 3D основано на открытом проекте Strata:3D и распространяется с учётом условий GNU AGPL версии 3. Авторские права и обязательные уведомления исходного проекта и сторонних библиотек сохранены. Исходный код модификаций ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid. Полный перечень сторонних лицензий доступен по кнопке «Уведомления о сторонних компонентах».",

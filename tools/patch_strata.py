@@ -1849,3 +1849,29 @@ translate("app/src/main/res/values/strings_info.xml", {
     "license_copyright": "ReverseScan 3D — автор и разработчик Richard Bähr.",
     "license_body": "ReverseScan 3D распространяется с учётом условий GNU AGPL версии 3. Обязательные уведомления исходного проекта и сторонних библиотек сохранены в полных лицензионных документах и уведомлениях о сторонних компонентах. Исходный код ReverseScan 3D: https://github.com/rb777pc-dotcom/ReverseScanAndroid.",
 })
+
+# Final branding cleanup: remove obsolete upstream component-credit strings from
+# app resources. Mandatory legal notice files are intentionally untouched.
+info_strings = ROOT / "app/src/main/res/values/strings_info.xml"
+info_xml = info_strings.read_text()
+credit_resource_names = re.findall(r'<string\s+name="(credit_[^\"]+)"', info_xml)
+if credit_resource_names:
+    all_kotlin = "\n".join(p.read_text(errors="ignore") for p in (ROOT / "app/src/main").rglob("*.kt"))
+    for resource_name in credit_resource_names:
+        if f"R.string.{resource_name}" in all_kotlin:
+            raise SystemExit(f"Obsolete component-credit resource is still referenced: {resource_name}")
+    info_xml = re.sub(r'\s*<string\s+name="credit_[^\"]+">.*?</string>', "", info_xml, flags=re.S)
+    info_strings.write_text(info_xml)
+
+# Enforce the product name and ReverseScan launcher artwork in Android metadata.
+manifest_path = ROOT / "app/src/main/AndroidManifest.xml"
+manifest_xml = manifest_path.read_text()
+manifest_xml = re.sub(r'android:label="[^"]+"', 'android:label="@string/app_name"', manifest_xml, count=1)
+if 'android:label="@string/app_name"' not in manifest_xml:
+    raise SystemExit("Could not enforce the ReverseScan launcher label")
+manifest_xml = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', manifest_xml, count=1)
+if 'android:roundIcon=' in manifest_xml:
+    manifest_xml = re.sub(r'android:roundIcon="[^"]+"', 'android:roundIcon="@mipmap/ic_launcher"', manifest_xml, count=1)
+else:
+    manifest_xml = manifest_xml.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"', 1)
+manifest_path.write_text(manifest_xml)

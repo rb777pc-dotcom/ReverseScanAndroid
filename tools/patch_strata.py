@@ -1929,10 +1929,18 @@ manifest.write_text(manifest_text)
 
 # The app's displayed version is derived from Android package metadata. Bump both
 # app modules together so About, Licences and Android package metadata cannot drift.
-for gradle_file in (ROOT / "app/build.gradle.kts", Path(__file__).resolve().parent.parent / "app/build.gradle.kts"):
+version_targets = (ROOT / "app/build.gradle.kts", Path(__file__).resolve().parent.parent / "app/build.gradle.kts")
+patched_versions = []
+for gradle_file in version_targets:
     if not gradle_file.is_file():
         continue
     gradle = gradle_file.read_text()
-    gradle = re.sub(r"versionCode\s*=\s*\d+", "versionCode = 10", gradle)
-    gradle = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.9.1"', gradle)
+    gradle, code_count = re.subn(r"versionCode\s*=\s*\d+", "versionCode = 10", gradle, count=1)
+    gradle, name_count = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.9.1"', gradle, count=1)
+    if code_count != 1 or name_count != 1:
+        raise SystemExit(f"Could not enforce app version in {gradle_file}: versionCode matches={code_count}, versionName matches={name_count}")
     gradle_file.write_text(gradle)
+    patched_versions.append(str(gradle_file))
+if ROOT / "app/build.gradle.kts" not in version_targets or not (ROOT / "app/build.gradle.kts").is_file():
+    raise SystemExit("Full scanner Gradle version file was not found")
+print("Enforced full scanner version 0.9.1 (versionCode 10) in: " + ", ".join(patched_versions))

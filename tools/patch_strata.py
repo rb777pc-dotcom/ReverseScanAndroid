@@ -1894,8 +1894,8 @@ for source in (ROOT / "app").rglob("*"):
         body = source.read_text()
     except (UnicodeDecodeError, OSError):
         continue
-    updated = re.sub(r"Strata\\s*:\\s*3D", "ReverseScan 3D", body, flags=re.I)
-    updated = re.sub(r"David\\s+Morales", "Richard Bähr", updated, flags=re.I)
+    updated = re.sub(r"Strata\s*:\s*3D", "ReverseScan 3D", body, flags=re.I)
+    updated = re.sub(r"David\s+Morales", "Richard Bähr", updated, flags=re.I)
     updated = re.sub(r"damzenquis|nini1294", "Richard Bähr", updated, flags=re.I)
     if updated != body:
         source.write_text(updated)
@@ -1906,6 +1906,6 @@ for gradle_file in (ROOT / "app/build.gradle.kts", Path(__file__).resolve().pare
     if not gradle_file.is_file():
         continue
     gradle = gradle_file.read_text()
-    gradle = re.sub(r"versionCode\\s*=\\s*9\\b", "versionCode = 10", gradle)
-    gradle = re.sub(r'versionName\\s*=\\s*"0\\.9\\.0"', 'versionName = "0.9.1"', gradle)
+    gradle = re.sub(r"versionCode\s*=\s*9\b", "versionCode = 10", gradle)
+    gradle = re.sub(r'versionName\s*=\s*"0\.9\.0"', 'versionName = "0.9.1"', gradle)
     gradle_file.write_text(gradle)

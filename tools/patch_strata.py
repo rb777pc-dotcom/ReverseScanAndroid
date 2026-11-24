@@ -2050,7 +2050,7 @@ if "var showLanguagePicker" not in viewer_source:
                         onClick = { showLanguagePicker = true },
                     )
                     listOf(
-                        InfoPage.SUPPORT""",
+                        InfoPage.HELP""",
         1,
     )
     # Put the language dialog at the end of SettingsPanel's composition.

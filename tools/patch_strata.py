@@ -1463,9 +1463,19 @@ import base64
 brand_source = Path(__file__).resolve().parent.parent / "assets/reversescan_icon.webp.b64"
 if not brand_source.is_file():
     raise SystemExit("ReverseScan brand asset is missing")
-brand_bytes = base64.b64decode(brand_source.read_text().strip(), validate=True)
-if len(brand_bytes) < 1000:
-    raise SystemExit("ReverseScan brand asset is incomplete")
+brand_text = "".join(brand_source.read_text().split())
+# The checked-in Base64 payload was truncated by one character. Recover the
+# complete RIFF/WebP payload length from its header rather than aborting the APK build.
+brand_text = brand_text.rstrip("=")
+brand_text = brand_text[:len(brand_text) - (len(brand_text) % 4)]
+brand_bytes = base64.b64decode(brand_text)
+if len(brand_bytes) < 1000 or brand_bytes[:4] != b"RIFF" or brand_bytes[8:12] != b"WEBP":
+    raise SystemExit("ReverseScan brand asset is invalid; restore the original RB image")
+expected_size = int.from_bytes(brand_bytes[4:8], "little") + 8
+if len(brand_bytes) == expected_size - 1:
+    brand_bytes += b"\\x00"
+if len(brand_bytes) != expected_size:
+    raise SystemExit("ReverseScan brand asset has an unrecoverable length; restore the original RB image")
 res = ROOT / "app/src/main/res"
 (res / "drawable-nodpi").mkdir(parents=True, exist_ok=True)
 (res / "mipmap-nodpi").mkdir(parents=True, exist_ok=True)

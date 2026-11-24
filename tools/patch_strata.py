@@ -1473,7 +1473,7 @@ if len(brand_bytes) < 1000 or brand_bytes[:4] != b"RIFF" or brand_bytes[8:12] !=
     raise SystemExit("ReverseScan brand asset is invalid; restore the original RB image")
 expected_size = int.from_bytes(brand_bytes[4:8], "little") + 8
 if len(brand_bytes) == expected_size - 1:
-    brand_bytes += b"\\x00"
+    brand_bytes += b"\x00"
 if len(brand_bytes) != expected_size:
     raise SystemExit("ReverseScan brand asset has an unrecoverable length; restore the original RB image")
 res = ROOT / "app/src/main/res"

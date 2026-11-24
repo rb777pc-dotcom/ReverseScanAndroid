@@ -1661,8 +1661,8 @@ vs=vs.replace(old_title,new_title);
 viewer.write_text(vs);
 
 # Brand palette: graphite/navy surfaces with electric-blue controls and cyan highlights.
-const themePath=ROOT/"app/src/main/java/app/strata3d/ui/theme/Theme.kt";
-let theme=themePath.read_text();
+theme_path = ROOT / "app/src/main/java/app/strata3d/ui/theme/Theme.kt"
+theme = theme_path.read_text()
 const replacements=[
 ["Color(0xFF01B2C6)","Color(0xFF2F80FF)"],
 ["Color(0xFF00252A)","Color(0xFF071426)"],
@@ -1698,29 +1698,32 @@ const replacements=[
 ["Color(0xFF383A3E)","Color(0xFF1D2D46)"],
 ["Color(0xFF899294)","Color(0xFF7386A3)"],
 ];
-for(const [a,b] of replacements) theme=theme.replaceAll(a,b);
-themePath.write_text(theme);
+for a, b in replacements:
+    theme = theme.replace(a, b)
+theme_path.write_text(theme)
 
 # Dark system bars and launcher background; remove the malformed old image from build inputs.
-const colorsPath=ROOT/"app/src/main/res/values/colors.xml";
-if(colorsPath.exists()){
- let c=colorsPath.read_text().replace("#ECEFF3","#080E1A").replace("#1C1D21","#080E1A").replace("#FFFFFF","#080E1A");
- colorsPath.write_text(c);
-}
-const manifest=ROOT/"app/src/main/AndroidManifest.xml";
-let mt=manifest.read_text();
-mt=mt.replace(/android:icon="[^"]+"/,'android:icon="@mipmap/ic_launcher"');
-if(!mt.includes("android:roundIcon=")) mt=mt.replace('android:icon="@mipmap/ic_launcher"','android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"');
-manifest.write_text(mt);
-const res=ROOT/"app/src/main/res";
-(res/"mipmap-anydpi-v26").mkdir(parents=True,exist_ok=True);
-(res/"drawable").mkdir(parents=True,exist_ok=True);
-(res/"values").mkdir(parents=True,exist_ok=True);
-(res/"values/colors_brand.xml").write_text("""<resources>
+colors_path = ROOT / "app/src/main/res/values/colors.xml"
+if colors_path.exists():
+    c = colors_path.read_text().replace("#ECEFF3", "#080E1A").replace("#1C1D21", "#080E1A").replace("#FFFFFF", "#080E1A")
+    colors_path.write_text(c)
+
+manifest = ROOT / "app/src/main/AndroidManifest.xml"
+mt = manifest.read_text()
+mt = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', mt, count=1)
+if "android:roundIcon=" not in mt:
+    mt = mt.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"', 1)
+manifest.write_text(mt)
+
+res = ROOT / "app/src/main/res"
+(res / "mipmap-anydpi-v26").mkdir(parents=True, exist_ok=True)
+(res / "drawable").mkdir(parents=True, exist_ok=True)
+(res / "values").mkdir(parents=True, exist_ok=True)
+(res / "values/colors_brand.xml").write_text("""<resources>
     <color name="brand_night">#080E1A</color>
 </resources>
-""");
-(res/"drawable/ic_launcher_foreground.xml").write_text("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
+""")
+(res / "drawable/ic_launcher_foreground.xml").write_text("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <path android:fillColor="#00000000" android:strokeColor="#2F80FF"
@@ -1730,11 +1733,11 @@ const res=ROOT/"app/src/main/res";
         android:strokeWidth="4" android:strokeLineCap="round"
         android:pathData="M36,54 L48,66 L73,41" />
 </vector>
-""");
-(res/"mipmap-anydpi-v26/ic_launcher.xml").write_text("""<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+""")
+(res / "mipmap-anydpi-v26/ic_launcher.xml").write_text("""<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/brand_night" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
     <monochrome android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
-""");
+""")
 print("Applied ReverseScan 3D dashboard, Russian labels, blue/navy theme and removed the broken legacy logo from the UI pipeline.");

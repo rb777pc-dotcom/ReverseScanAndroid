@@ -1906,6 +1906,6 @@ for gradle_file in (ROOT / "app/build.gradle.kts", Path(__file__).resolve().pare
     if not gradle_file.is_file():
         continue
     gradle = gradle_file.read_text()
-    gradle = re.sub(r"versionCode\s*=\s*9\b", "versionCode = 10", gradle)
-    gradle = re.sub(r'versionName\s*=\s*"0\.9\.0"', 'versionName = "0.9.1"', gradle)
+    gradle = re.sub(r"versionCode\s*=\s*\d+", "versionCode = 10", gradle)
+    gradle = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.9.1"', gradle)
     gradle_file.write_text(gradle)

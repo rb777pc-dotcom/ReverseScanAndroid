@@ -19,7 +19,7 @@ def sub_once(path, pattern, replacement, label):
 
 # A stable store identity. Keep the Kotlin namespace unchanged; it is an internal package name.
 sub_once(gradle, r'applicationId = ".*?"', 'applicationId = "com.reversescan.app"', "applicationId")
-sub_once(gradle, r'versionCode = \\d+', 'versionCode = 12', "versionCode")
+sub_once(gradle, r'versionCode = \d+', 'versionCode = 12', "versionCode")
 sub_once(gradle, r'versionName = ".*?"', 'versionName = "0.9.3"', "versionName")
 
 sub_once(manifest, r'android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/reversescan_app_icon"', "launcher icon resource")

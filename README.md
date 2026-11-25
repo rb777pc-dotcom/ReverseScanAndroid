@@ -1,78 +1,68 @@
-# ReverseScan Android — v0.7.0
+# ReverseScan 3D
 
-Native Android 3D scanning prototype built with Kotlin and Google ARCore Depth API. Intended first for depth-capable ARCore devices such as Samsung Galaxy S24 Ultra.
+**Android 3D object scanner · ARCore Depth API · PLY / OBJ / STL**
 
-## Included in v0.7.0
+[Русская версия](README_RU.md) · [Download APK](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048) · [Report a bug](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues/new/choose) · [All issues](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues)
 
-- ARCore live camera preview with display-geometry correction.
-- Camera autofocus requested through ARCore `FocusMode.AUTO`.
-- Dense ARCore Depth API map is the primary source; high-confidence raw depth measurements refine it where available. Low raw-confidence pixels no longer cause the entire frame to be discarded.
-- Scan status reports dense-map and raw-depth sample counts separately, and distinguishes unavailable depth from object/background segmentation failure.
-- On-camera target frame and depth-connected component segmentation seeded at the centre of the frame; distant background is rejected when it is separated by a depth discontinuity.
-- Live camera overlay: cyan points show retained scan data; orange points show the latest accepted target frame.
-- A live rotatable 3D mini-viewport shows the accumulated target and current frame separately, with accepted viewpoint and point counts.
-- Duplicate captures are suppressed until the phone has moved or changed viewing angle enough to add a new viewpoint.
-- The display is kept awake during active scanning.
-- Rotatable point-cloud inspection dialog before triangle-mesh reconstruction.
-- ARCore flash/torch toggle when the active camera configuration supports it.
-- Continuous capture while scanning, plus manual single-view capture.
-- Multi-view accumulation in a scan-local coordinate frame.
-- Sparse projective TSDF volume integration.
-- Marching-tetrahedra surface reconstruction from the accumulated TSDF.
-- Interactive shaded mesh preview; drag to rotate the result.
-- PLY point-cloud export.
-- OBJ triangle-mesh export (coordinates in metres).
-- Binary STL triangle-mesh export (coordinates converted to millimetres).
-- System file picker for saving exports.
-- Reset of the current scan and volume.
+## Latest build
+
+**Current full-scanner build: 0.9.1**  
+Build: [GitHub Actions run #157](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048) · Commit: `b9310daf414185607c085f788e6cef1c284c46a4`
+
+To download the installable APK:
+
+1. Open the successful workflow run linked above.
+2. Scroll to **Artifacts** at the bottom of the run page.
+3. Download **ReverseScan-Strata-full** (do not choose `ReverseScan-native`; that is an internal preflight build).
+4. Extract the ZIP and install `app-debug.apk` on an ARCore-compatible Android phone.
+
+For a newer build, open [Actions](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/strata-full-build.yml), select the latest successful **Build ReverseScan 3D scanner (full native)** run, and download its **ReverseScan-Strata-full** artifact.
+
+> Actions artifacts are temporary downloads and expire according to the retention period. A permanent GitHub Release is not published yet. Do not download the automatically generated **Source code** ZIP as an APK.
+
+## What it does
+
+- Uses ARCore Depth API for multi-view depth capture.
+- Lets the user outline the target object before scanning.
+- Locks a conservative 3D target volume and rejects observations outside it.
+- Accumulates depth points from overlapping viewpoints.
+- Reconstructs a triangle mesh from the accumulated depth volume.
+- Previews and rotates the reconstructed model.
+- Exports point clouds as PLY and meshes as OBJ or STL.
+- Imports supported PLY point-cloud files.
+
+The scanner uses depth-based segmentation, not semantic AI object recognition. Results depend on device support, lighting, surface texture, reflectivity, tracking quality, and viewpoint coverage.
 
 ## Scan workflow
 
 1. Install the APK and grant camera permission.
-2. Wait until ARCore reports that the camera is ready.
-3. Place the object in a well-lit, textured scene. Avoid glossy, transparent, black, or moving surfaces.
-4. If needed, turn on **Фонарик**. It uses the active ARCore camera flash when supported.
-5. Keep the object centred under the green crosshair inside the on-screen frame and make it fill most of that frame. The scanner attempts to isolate the depth-connected object region from the background; it is not semantic object recognition, so a background touching the object at a similar depth may still be included. Press **Начать скан** and move slowly around the stationary object using overlapping viewpoints.
-6. Watch both the camera overlay and the live 3D mini-viewport: cyan is retained data; orange is the latest accepted frame. The status line reports accepted viewpoints and points. The screen stays awake while scanning.
-7. Use **Пауза** to stop automatic capture. **Добавить ракурс** captures an additional depth view manually.
-8. Inspect the live overlay before finishing. If a side has no points, move to that side and capture it.
-9. Press **Просмотр скана** to rotate and inspect the accumulated point cloud before reconstruction. Close it and continue scanning if coverage is missing.
-10. **Сохранить PLY** exports the accumulated point cloud. **Построить 3D** reconstructs a triangle surface from the TSDF volume.
-11. Drag the mesh preview to inspect it. Export as OBJ or STL from the preview dialog.
-12. Use **Новый скан — очистить данные** before scanning another object.
+2. Wait for ARCore to initialise.
+3. Outline the object inside the guide frame.
+4. Start scanning and move slowly around the stationary object, keeping adjacent viewpoints overlapping.
+5. Pause when coverage is complete. Capture additional viewpoints where the preview shows missing areas.
+6. Inspect the accumulated point cloud, then build the 3D mesh.
+7. Export the point cloud as PLY or the mesh as OBJ/STL.
 
-For a small object, start roughly 0.4–0.8 m away and adjust so the object fills most of the guide frame. ARCore Depth API's usable range and quality depend on device, firmware, light, texture, motion, and object material.
+Use the on-screen **Torch** control only when the device camera supports flash. The app interface currently uses Russian labels; this English guide uses English descriptions consistently.
 
-## Output formats
+## File formats
 
-- **PLY**: depth-derived point cloud; not a surface mesh.
-- **OBJ**: triangle surface mesh, coordinates in metres.
-- **STL**: triangle surface mesh, coordinates written in millimetres.
+- **PLY** — depth-derived point cloud; not a surface mesh.
+- **OBJ** — triangle mesh; coordinates in metres.
+- **STL** — triangle mesh; coordinates in millimetres.
 
-The reconstructed surface is not guaranteed to be watertight, manifold, hole-free, dimensionally calibrated, or suitable for direct 3D printing. Open or missing areas can occur where depth observations do not overlap. Inspect and repair the mesh in MeshLab, Blender, or CAD/mesh software before manufacturing.
+The output is not guaranteed to be watertight, manifold, dimensionally calibrated, or ready for manufacturing. Inspect and repair meshes in suitable 3D/CAD software before production. This phone-based scanner is not a metrology instrument; verify critical dimensions independently.
 
-## Accuracy and limitations
+## Build information
 
-This is a phone-based depth scanner, not a metrology instrument. ARCore tracking drift, depth noise, calibration, viewpoint coverage, and surface reflectivity affect dimensions and topology. Do not rely on it for engineering tolerances without scale calibration and independent measurement using appropriate instruments.
+The full installable scanner is assembled by the `Build ReverseScan 3D scanner (full native)` workflow. The repository's `app/` module is retained as an internal native preflight/test target; its APK artifact is **not** the full scanner.
 
-The current version does not provide CAD feature recognition, parametric modelling, STEP export, automatic hole filling, or guaranteed watertight mesh generation. STL export does not validate printability.
+- Workflow: [strata-full-build.yml](.github/workflows/strata-full-build.yml)
+- Russian build notes: [BUILD_APK_RU.md](BUILD_APK_RU.md)
+- Source branch used for the current full build: `fix-five-reported-defects`
 
-## Build and tests
+## Support and feedback
 
-The GitHub Actions workflow runs JVM unit tests for TSDF mesh extraction and builds the debug APK:
+Use [Issues](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues/new/choose) to report bugs, request features, or ask questions. Include your phone model, Android version, app build number, and the steps that reproduce the problem. Do not attach private data or scans of sensitive objects.
 
-```bash
-gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug
-```
-
-Install and test on the physical ARCore-capable phone. The Android emulator cannot validate the camera depth pipeline.
-
-
-## Version 0.8.0 — manual object selection and 3D target lock
-
-- Added a finger-drawn lasso contour before scanning.
-- Converts the Android screen contour to ARCore camera-image coordinates using the current display geometry.
-- Uses depth-connected segmentation only inside the lasso, reducing background pickup.
-- Creates a conservative 3D target volume in the first selected view and tracks that fixed volume in ARCore world space as the phone moves.
-- Frames outside the locked volume are rejected instead of re-seeding on the background.
-- The lasso is a manual object boundary, not semantic AI classification; depth segmentation refines the selected region.
+GitHub Discussions is currently disabled for this repository; Issues are the active support channel.

@@ -1,4 +1,4 @@
-name: Build ReverseScan 3D scanner (full native) # branding audit
+name: Build ReverseScan 3D scanner
 
 on:
   push:
@@ -21,12 +21,12 @@ jobs:
       - name: Checkout ReverseScanAndroid (build launcher)
         uses: actions/checkout@v4
 
-      - name: Checkout Strata:3D source
+      - name: Checkout 3D reconstruction engine source
         uses: actions/checkout@v4
         with:
           repository: damzenquis/Strata-3D
           ref: main
-          path: strata
+          path: scanner-engine
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -55,7 +55,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Test and build ReverseScan app (not upstream Strata)
+      - name: Test and build ReverseScan app (not full scanner)
         run: |
           gradle testDebugUnitTest
           gradle assembleDebug
@@ -77,10 +77,10 @@ jobs:
           python3 tools/patch_strata.py
           python3 tools/audit_branding.py
           # Remove optional letterSpacing arguments without deleting their Compose Text calls.
-          sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' strata/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
+          sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' scanner-engine/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
 
       - name: Adapt upstream native scripts for Linux runner
-        working-directory: strata
+        working-directory: scanner-engine
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -102,14 +102,14 @@ jobs:
           grep -nE 'SDK=|CMAKE_MAKE_PROGRAM|pkg_check_modules' tools/recon/build.sh tools/recon/openmvs/build_openmvs.sh
 
       - name: Build MVE and texturing tools (Android arm64)
-        working-directory: strata
+        working-directory: scanner-engine
         run: |
           chmod +x tools/recon/build.sh tools/recon/openmvs/build_openmvs.sh
           tools/recon/build.sh
           df -h
 
       - name: Build OpenMVS tools (Android arm64)
-        working-directory: strata
+        working-directory: scanner-engine
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
@@ -134,7 +134,7 @@ jobs:
           keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey
 
       - name: Run unit tests and build full APK
-        working-directory: strata
+        working-directory: scanner-engine
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
@@ -154,7 +154,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ReverseScan-Strata-full
-          path: strata/app/build/outputs/apk/debug/*.apk
+          name: ReverseScan-full
+          path: scanner-engine/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 90

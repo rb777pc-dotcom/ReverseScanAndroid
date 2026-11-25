@@ -2,7 +2,7 @@ name: Build ReverseScan 3D scanner
 
 on:
   push:
-    branches: [main, scanner-engine-migration, fix-five-reported-defects]
+    branches: [main, strata-migration, fix-five-reported-defects]
   workflow_dispatch:
 
 permissions:
@@ -77,7 +77,7 @@ jobs:
           python3 tools/patch_scanner.py
           python3 tools/audit_branding.py
           # Remove optional letterSpacing arguments without deleting their Compose Text calls.
-          sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' scanner-engine/app/src/main/java/app/scanner-engine3d/ui/ViewerScreen.kt
+          sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' scanner-engine/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
 
       - name: Adapt upstream native scripts for Linux runner
         working-directory: scanner-engine

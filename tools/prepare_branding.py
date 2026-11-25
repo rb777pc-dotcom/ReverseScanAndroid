@@ -32,7 +32,18 @@ import base64
 asset_b64 = root / "assets/reversescan_rb_icon.webp.b64"
 if not asset_b64.is_file():
     raise SystemExit("Missing selected RB launcher artwork: assets/reversescan_rb_icon.webp.b64")
-icon_bytes = base64.b64decode("".join(asset_b64.read_text().split()), validate=True)
+encoded = "".join(asset_b64.read_text().split())
+if len(encoded) < 16 or not encoded.startswith("UklGR"):
+    raise SystemExit("Selected ReverseScan RB icon is not a valid WebP file")
+header = base64.b64decode(encoded[:16], validate=True)
+if header[:4] != b"RIFF" or header[8:12] != b"WEBP":
+    raise SystemExit("Selected ReverseScan RB icon has an invalid WebP header")
+expected = int.from_bytes(header[4:8], "little") + 8
+encoded_length = ((expected + 2) // 3) * 4
+icon_bytes = base64.b64decode(encoded[:encoded_length], validate=True)
+if len(icon_bytes) != expected:
+    raise SystemExit("Selected ReverseScan RB icon is truncated")
+
 icon_path = app / "src/main/res/drawable-nodpi/reversescan_app_icon.webp"
 icon_path.parent.mkdir(parents=True, exist_ok=True)
 icon_path.write_bytes(icon_bytes)

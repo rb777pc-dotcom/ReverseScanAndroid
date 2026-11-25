@@ -5,7 +5,7 @@ import base64
 import re
 
 REPO = Path(__file__).resolve().parent.parent
-ROOT = REPO / "strata"
+ROOT = REPO / "scanner-engine"
 APP = ROOT / "app/src/main"
 RES = APP / "res"
 

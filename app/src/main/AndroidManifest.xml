@@ -3,7 +3,7 @@
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
     <application
         android:allowBackup="true"
-        android:label="ReverseScan"
+        android:label="ReverseScan 3D"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <meta-data android:name="com.google.ar.core" android:value="optional" />

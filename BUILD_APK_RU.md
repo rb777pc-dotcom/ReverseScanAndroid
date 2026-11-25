@@ -4,12 +4,12 @@
 
 1. Откройте [последнюю успешную полную сборку](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048).
 2. Внизу страницы найдите блок **Artifacts**.
-3. Скачайте архив **ReverseScan-Strata-full**.
+3. Скачайте архив **ReverseScan-full**.
 4. Распакуйте ZIP и установите файл `app-debug.apk`.
 
 **Важно:** `ReverseScan-native` — вспомогательная внутренняя сборка, а не полный сканер. Архивы **Source code** также не являются установочными файлами.
 
-Для последующих версий откройте [список сборок](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/strata-full-build.yml), выберите последний успешный запуск workflow **Build ReverseScan 3D scanner (full native)** и скачайте артефакт **ReverseScan-Strata-full**.
+Для последующих версий откройте [список сборок](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/reversescan-full-build.yml), выберите последний успешный запуск workflow **Build ReverseScan 3D scanner** и скачайте артефакт **ReverseScan-full**.
 
 Артефакты GitHub Actions временные и удаляются по истечении срока хранения. Постоянный раздел Releases пока не настроен.
 
@@ -29,4 +29,4 @@
 
 ## Для разработчиков
 
-Полный сканер собирается workflow [Build ReverseScan 3D scanner (full native)](.github/workflows/strata-full-build.yml). В корневом каталоге `app/` находится вспомогательная нативная цель для предварительной сборки и JVM-тестов; её APK не является полной версией сканера.
+Полный сканер собирается workflow [Build ReverseScan 3D scanner](.github/workflows/reversescan-full-build.yml). В корневом каталоге `app/` находится вспомогательная нативная цель для предварительной сборки и JVM-тестов; её APK не является полной версией сканера.

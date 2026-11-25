@@ -1893,7 +1893,18 @@ import base64
 brand_source = Path(__file__).resolve().parent.parent / "assets/reversescan_rb_icon.webp.b64"
 if not brand_source.is_file():
     raise SystemExit("Original ReverseScan RB icon asset is missing")
-brand_bytes = base64.b64decode("".join(brand_source.read_text().split()), validate=True)
+brand_b64 = "".join(brand_source.read_text().split())
+# The committed text asset may contain trailing export residue. Trust the
+# RIFF length in the WebP header and decode exactly that many bytes.
+if len(brand_b64) < 16 or not brand_b64.startswith("UklGR"):
+    raise SystemExit("Original ReverseScan RB icon has no valid WebP header")
+header = base64.b64decode(brand_b64[:16], validate=True)
+if header[:4] != b"RIFF" or header[8:12] != b"WEBP":
+    raise SystemExit("Original ReverseScan RB icon header is invalid")
+declared_bytes = int.from_bytes(header[4:8], "little") + 8
+encoded_chars = ((declared_bytes + 2) // 3) * 4
+brand_bytes = base64.b64decode(brand_b64[:encoded_chars], validate=True)
+
 if len(brand_bytes) < 1000 or brand_bytes[:4] != b"RIFF" or brand_bytes[8:12] != b"WEBP":
     raise SystemExit("Original ReverseScan RB icon is invalid")
 expected_size = int.from_bytes(brand_bytes[4:8], "little") + 8

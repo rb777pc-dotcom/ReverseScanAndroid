@@ -1,7 +1,6 @@
 name: Question or discussion
 description: Ask a question about installation, scanning, import, export, or results
 title: "[Question]: "
-labels: ["question"]
 body:
   - type: dropdown
     id: topic

@@ -49,8 +49,21 @@ if hits:
     raise SystemExit("Brand audit failed: foreign product branding remains in app source/code")
 
 # Validate the user-supplied launcher artwork byte-for-byte.
+# The text-safe asset may contain a trailing transport character after the padded
+# Base64 payload. Read the WebP RIFF length first, then decode exactly that payload,
+# matching prepare_branding.py; never decode arbitrary trailing bytes.
 brand_b64 = REPO / "assets/reversescan_rb_icon.webp.b64"
-expected = base64.b64decode("".join(brand_b64.read_text().split()), validate=True)
+encoded = "".join(brand_b64.read_text().split())
+header = base64.b64decode(encoded[:16], validate=True)
+if header[:4] != b"RIFF" or header[8:12] != b"WEBP":
+    raise SystemExit("Brand audit: launcher artwork has an invalid WebP header")
+expected_size = int.from_bytes(header[4:8], "little") + 8
+payload_length = ((expected_size + 2) // 3) * 4
+if len(encoded) < payload_length:
+    raise SystemExit("Brand audit: launcher artwork Base64 payload is truncated")
+expected = base64.b64decode(encoded[:payload_length], validate=True)
+if len(expected) != expected_size:
+    raise SystemExit("Brand audit: launcher artwork WebP payload length is invalid")
 icon = RES / "drawable-nodpi/reversescan_app_icon.webp"
 if not icon.is_file() or icon.read_bytes() != expected:
     raise SystemExit("Brand audit: launcher icon is not the supplied ReverseScan RB artwork")

@@ -75,6 +75,7 @@ jobs:
       - name: Apply scanner reliability and Russian UI fixes
         run: |
           python3 tools/patch_scanner.py
+          python3 tools/prepare_branding.py
           python3 tools/audit_branding.py
           # Remove optional letterSpacing arguments without deleting their Compose Text calls.
           sed -i -E 's/, *letterSpacing = [^,)]*\\.sp//g' scanner-engine/app/src/main/java/app/strata3d/ui/ViewerScreen.kt
@@ -145,7 +146,7 @@ jobs:
           AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
           test -f "$APK"
           BADGING="$("$AAPT" dump badging "$APK")"
-          printf '%s\n' "$BADGING" | grep -F "versionCode='11' versionName='0.9.2'"
+          printf '%s\n' "$BADGING" | grep -F "versionCode='12' versionName='0.9.3'"
           printf '%s\n' "$BADGING" | grep -F "application-label:'ReverseScan 3D'"
           echo "Verified final full scanner APK: versionName=0.9.2 versionCode=11"
           ls -lh app/build/outputs/apk/debug/

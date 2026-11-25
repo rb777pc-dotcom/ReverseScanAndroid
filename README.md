@@ -13,10 +13,10 @@ To download the installable APK:
 
 1. Open the successful workflow run linked above.
 2. Scroll to **Artifacts** at the bottom of the run page.
-3. Download **ReverseScan-Strata-full** (do not choose `ReverseScan-native`; that is an internal preflight build).
+3. Download **ReverseScan-full** (do not choose `ReverseScan-native`; that is an internal preflight build).
 4. Extract the ZIP and install `app-debug.apk` on an ARCore-compatible Android phone.
 
-For a newer build, open [Actions](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/strata-full-build.yml), select the latest successful **Build ReverseScan 3D scanner (full native)** run, and download its **ReverseScan-Strata-full** artifact.
+For a newer build, open [Actions](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/reversescan-full-build.yml), select the latest successful **Build ReverseScan 3D scanner** run, and download its **ReverseScan-full** artifact.
 
 > Actions artifacts are temporary downloads and expire according to the retention period. A permanent GitHub Release is not published yet. Do not download the automatically generated **Source code** ZIP as an APK.
 
@@ -55,9 +55,9 @@ The output is not guaranteed to be watertight, manifold, dimensionally calibrate
 
 ## Build information
 
-The full installable scanner is assembled by the `Build ReverseScan 3D scanner (full native)` workflow. The repository's `app/` module is retained as an internal native preflight/test target; its APK artifact is **not** the full scanner.
+The full installable scanner is assembled by the `Build ReverseScan 3D scanner` workflow. The repository's `app/` module is retained as an internal native preflight/test target; its APK artifact is **not** the full scanner.
 
-- Workflow: [strata-full-build.yml](.github/workflows/strata-full-build.yml)
+- Workflow: [reversescan-full-build.yml](.github/workflows/reversescan-full-build.yml)
 - Russian build notes: [BUILD_APK_RU.md](BUILD_APK_RU.md)
 - Source branch used for the current full build: `fix-five-reported-defects`
 

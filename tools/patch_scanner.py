@@ -2105,7 +2105,20 @@ if not manifest.is_file():
     raise SystemExit(f"Missing Android manifest: {manifest}")
 icon_target.parent.mkdir(parents=True, exist_ok=True)
 try:
-    icon_target.write_bytes(base64.b64decode(icon_source.read_text().strip(), validate=True))
+    encoded_icon = "".join(icon_source.read_text().split())
+    if len(encoded_icon) < 16 or not encoded_icon.startswith("UklGR"):
+        raise ValueError("missing WebP Base64 header")
+    webp_header = base64.b64decode(encoded_icon[:16], validate=True)
+    if webp_header[:4] != b"RIFF" or webp_header[8:12] != b"WEBP":
+        raise ValueError("invalid WebP RIFF header")
+    webp_size = int.from_bytes(webp_header[4:8], "little") + 8
+    payload_chars = ((webp_size + 2) // 3) * 4
+    if len(encoded_icon) < payload_chars:
+        raise ValueError("truncated WebP Base64 payload")
+    icon_bytes = base64.b64decode(encoded_icon[:payload_chars], validate=True)
+    if len(icon_bytes) != webp_size:
+        raise ValueError("WebP payload length does not match RIFF header")
+    icon_target.write_bytes(icon_bytes)
 except Exception as exc:
     raise SystemExit(f"Invalid ReverseScan launcher artwork: {exc}")
 manifest_text = manifest.read_text()

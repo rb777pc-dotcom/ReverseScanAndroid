@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: ReverseScan 3D documentation
+    url: https://github.com/rb777pc-dotcom/ReverseScanAndroid#readme
+    about: Read the download, installation, and scanning instructions before opening a ticket.

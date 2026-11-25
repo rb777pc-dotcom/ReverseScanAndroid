@@ -60,6 +60,7 @@ class MainActivity : Activity() {
     private lateinit var meshButton: Button
     private lateinit var previewButton: Button
     private lateinit var torchButton: Button
+    private lateinit var importButton: Button
     private lateinit var livePreview: LiveScanPreviewView
     private lateinit var guideOverlay: ScanGuideOverlay
     private lateinit var selectObjectButton: Button
@@ -264,6 +265,12 @@ class MainActivity : Activity() {
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(title, LinearLayout.LayoutParams(0, dp(44), 1f))
+        importButton = Button(this).apply {
+            text = "Импорт PLY"
+            contentDescription = "Импортировать ранее сохранённое облако точек PLY"
+            setOnClickListener { launchOpenPlyDocument() }
+        }
+        header.addView(importButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)))
         torchButton = Button(this).apply {
             text = "Фонарик: выкл"
             isEnabled = false
@@ -384,6 +391,57 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun launchOpenPlyDocument() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/octet-stream", "application/ply", "text/plain"))
+        }
+        try {
+            startActivityForResult(intent, OPEN_PLY_REQUEST)
+        } catch (e: Exception) {
+            status.text = "Не удалось открыть импорт PLY: ${e.localizedMessage ?: e.javaClass.simpleName}"
+        }
+    }
+
+    /** Imports the ASCII PLY point-cloud format exported by ReverseScan. */
+    private fun readAsciiPly(uri: Uri): List<FloatArray> {
+        val input = contentResolver.openInputStream(uri)
+            ?: throw IllegalStateException("Не удалось открыть выбранный файл")
+        input.bufferedReader(Charsets.US_ASCII).use { reader ->
+            if (reader.readLine()?.trim() != "ply") throw IllegalArgumentException("Это не файл PLY.")
+            var ascii = false
+            var vertexCount = -1
+            var endedHeader = false
+            while (true) {
+                val line = reader.readLine() ?: throw IllegalArgumentException("Заголовок PLY повреждён.")
+                val parts = line.trim().split(Regex("\\s+"))
+                when {
+                    line.startsWith("format ") -> ascii = parts.size >= 3 && parts[1] == "ascii" && parts[2] == "1.0"
+                    parts.size == 3 && parts[0] == "element" && parts[1] == "vertex" ->
+                        vertexCount = parts[2].toIntOrNull() ?: -1
+                    line.trim() == "end_header" -> { endedHeader = true; break }
+                }
+            }
+            if (!endedHeader || !ascii) throw IllegalArgumentException("Поддерживается ASCII PLY 1.0. Бинарный PLY пока не поддерживается.")
+            if (vertexCount !in 1..2_000_000) throw IllegalArgumentException("Некорректное число точек в PLY.")
+            val points = ArrayList<FloatArray>(vertexCount)
+            repeat(vertexCount) {
+                val line = reader.readLine() ?: throw IllegalArgumentException("Файл PLY обрезан: прочитано ${points.size} из $vertexCount точек.")
+                val values = line.trim().split(Regex("\\s+"))
+                if (values.size < 3) throw IllegalArgumentException("Некорректная строка точки №${it + 1}.")
+                val x = values[0].toFloatOrNull()
+                val y = values[1].toFloatOrNull()
+                val z = values[2].toFloatOrNull()
+                if (x == null || y == null || z == null || !x.isFinite() || !y.isFinite() || !z.isFinite()) {
+                    throw IllegalArgumentException("Некорректные координаты точки №${it + 1}.")
+                }
+                points.add(floatArrayOf(x, y, z))
+            }
+            return points
+        }
+    }
+
     private fun launchCreateDocument() {
         val points = pendingExportPoints
         if (points.isNullOrEmpty()) {
@@ -478,6 +536,26 @@ class MainActivity : Activity() {
     @Deprecated("Using the system document picker for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == OPEN_PLY_REQUEST) {
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            if (uri == null) {
+                status.text = "Импорт отменён."
+                return
+            }
+            status.text = "Читаю облако точек PLY…"
+            Thread({
+                try {
+                    val points = readAsciiPly(uri)
+                    runOnUiThread {
+                        status.text = "Импортировано точек: ${points.size}. Это облако точек; продолжить реконструкцию из него нельзя."
+                        showPointCloudPreview(points)
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread { status.text = "Ошибка импорта PLY: ${e.localizedMessage ?: e.javaClass.simpleName}" }
+                }
+            }, "ReverseScan-PlyImport").start()
+            return
+        }
         if (requestCode == CREATE_MESH_REQUEST) {
             val uri = if (resultCode == RESULT_OK) data?.data else null
             val mesh = pendingMesh
@@ -579,6 +657,7 @@ class MainActivity : Activity() {
     companion object {
         private const val CREATE_PLY_REQUEST = 501
         private const val CREATE_MESH_REQUEST = 502
+        private const val OPEN_PLY_REQUEST = 503
     }
 }
 

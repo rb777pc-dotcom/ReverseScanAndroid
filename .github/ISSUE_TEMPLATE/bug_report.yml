@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible problem in ReverseScan 3D
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Before submitting, check whether the issue has already been reported."
+  - type: input
+    id: app-version
+    attributes:
+      label: App build
+      description: "For example, 0.9.1 (shown in the app or download page)."
+      placeholder: "0.9.1"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone model
+      placeholder: "Samsung Galaxy S24 Ultra"
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+      placeholder: "Android 15"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: "List the exact actions that lead to the problem."
+      placeholder: "1. Open the app…"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Logs or screenshots
+      description: "Remove personal or sensitive information before attaching files."
+    validations:
+      required: false

@@ -13,10 +13,10 @@
 
 1. Откройте успешную сборку по ссылке выше.
 2. Прокрутите страницу вниз до раздела **Artifacts**.
-3. Скачайте **ReverseScan-Strata-full**. Не выбирайте `ReverseScan-native` — это внутренняя предварительная сборка, а не полный сканер.
+3. Скачайте **ReverseScan-full**. Не выбирайте `ReverseScan-native` — это внутренняя предварительная сборка, а не полный сканер.
 4. Распакуйте ZIP-архив и установите `app-debug.apk` на Android-устройство с поддержкой ARCore.
 
-Для более новой версии откройте [Actions](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/strata-full-build.yml), выберите последний успешный запуск **Build ReverseScan 3D scanner (full native)** и скачайте артефакт **ReverseScan-Strata-full**.
+Для более новой версии откройте [Actions](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/reversescan-full-build.yml), выберите последний успешный запуск **Build ReverseScan 3D scanner** и скачайте артефакт **ReverseScan-full**.
 
 > Артефакты Actions хранятся ограниченное время и затем удаляются согласно сроку хранения. Постоянный GitHub Release пока не опубликован. Автоматический архив **Source code** — это исходники, а не установочный APK.
 
@@ -55,9 +55,9 @@
 
 ## Сборка
 
-Полный устанавливаемый сканер собирает workflow **Build ReverseScan 3D scanner (full native)**. Каталог `app/` оставлен как внутренняя нативная цель для предварительной проверки и тестов; APK из артефакта **ReverseScan-native** не является полной версией сканера.
+Полный устанавливаемый сканер собирает workflow **Build ReverseScan 3D scanner**. Каталог `app/` оставлен как внутренняя нативная цель для предварительной проверки и тестов; APK из артефакта **ReverseScan-native** не является полной версией сканера.
 
-- Workflow: [strata-full-build.yml](.github/workflows/strata-full-build.yml)
+- Workflow: [reversescan-full-build.yml](.github/workflows/reversescan-full-build.yml)
 - Инструкция по сборке: [BUILD_APK_RU.md](BUILD_APK_RU.md)
 - Ветка исходников текущей полной сборки: `fix-five-reported-defects`
 

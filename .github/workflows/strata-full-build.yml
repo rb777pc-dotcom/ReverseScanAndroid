@@ -2,7 +2,7 @@ name: Build ReverseScan 3D scanner (full native) # branding audit
 
 on:
   push:
-    branches: [strata-migration, fix-five-reported-defects]
+    branches: [main, strata-migration, fix-five-reported-defects]
   workflow_dispatch:
 
 permissions:
@@ -165,5 +165,5 @@ jobs:
         with:
           name: ReverseScan-Strata-full
           path: strata/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
-          retention-days: 14
+          if-no-files-found: error
+          retention-days: 90

@@ -2,7 +2,7 @@
 
 ## Скачать готовое приложение
 
-1. Откройте [последнюю успешную полную сборку](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048).
+1. Откройте [страницу сборок полного сканера](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/reversescan-full-build.yml).
 2. Внизу страницы найдите блок **Artifacts**.
 3. Скачайте архив **ReverseScan-full**.
 4. Распакуйте ZIP и установите файл `app-debug.apk`.

@@ -2,7 +2,7 @@
 
 **Android 3D object scanner · ARCore Depth API · PLY / OBJ / STL**
 
-[Русская версия](README_RU.md) · [Download APK](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048) · [Report a bug](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues/new/choose) · [All issues](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues)
+[Russian version](README_RU.md) · [Download APK](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048) · [Report a bug](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues/new/choose) · [All issues](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues)
 
 ## Latest build
 

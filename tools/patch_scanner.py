@@ -2124,8 +2124,8 @@ for gradle_file in version_targets:
     if not gradle_file.is_file():
         continue
     gradle = gradle_file.read_text()
-    gradle, code_count = re.subn(r"versionCode\s*=\s*\d+", "versionCode = 10", gradle, count=1)
-    gradle, name_count = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.9.1"', gradle, count=1)
+    gradle, code_count = re.subn(r"versionCode\s*=\s*\d+", "versionCode = 11", gradle, count=1)
+    gradle, name_count = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.9.2"', gradle, count=1)
     if code_count != 1 or name_count != 1:
         raise SystemExit(f"Could not enforce app version in {gradle_file}: versionCode matches={code_count}, versionName matches={name_count}")
     gradle_file.write_text(gradle)
@@ -2372,7 +2372,7 @@ elif "R.string.plans_body" not in info_source:
     raise SystemExit("About page roadmap insertion anchor missing")
 info_path.write_text(info_source)
 
-print("Enforced full scanner version 0.9.1 (versionCode 10) in: " + ", ".join(patched_versions))
+print("Enforced full scanner version 0.9.2 (versionCode 11) in: " + ", ".join(patched_versions))
 
 
 # Improve object picking and identity continuity. A tap must hit a detected object;

@@ -2,16 +2,16 @@
 
 **Android 3D object scanner · ARCore Depth API · PLY / OBJ / STL**
 
-[Russian version](README_RU.md) · [Download APK](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048) · [Report a bug](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues/new/choose) · [All issues](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues)
+[Russian version](README_RU.md) · [Download APK](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/workflows/reversescan-full-build.yml) · [Report a bug](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues/new/choose) · [All issues](https://github.com/rb777pc-dotcom/ReverseScanAndroid/issues)
 
 ## Latest build
 
-**Current full-scanner build: 0.9.1**  
-Build: [GitHub Actions run #157](https://github.com/rb777pc-dotcom/ReverseScanAndroid/actions/runs/45489640048) · Commit: `b9310daf414185607c085f788e6cef1c284c46a4`
+**Current app version: 0.9.1**  
+Open the workflow page below and choose the latest successful run.
 
 To download the installable APK:
 
-1. Open the successful workflow run linked above.
+1. Open the latest successful workflow run.
 2. Scroll to **Artifacts** at the bottom of the run page.
 3. Download **ReverseScan-full** (do not choose `ReverseScan-native`; that is an internal preflight build).
 4. Extract the ZIP and install `app-debug.apk` on an ARCore-compatible Android phone.

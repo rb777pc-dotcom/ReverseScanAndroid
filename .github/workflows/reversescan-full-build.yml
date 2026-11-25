@@ -2,7 +2,7 @@ name: Build ReverseScan 3D scanner
 
 on:
   push:
-    branches: [main, strata-migration, fix-five-reported-defects]
+    branches: [main, fix-five-reported-defects]
   workflow_dispatch:
 
 permissions:

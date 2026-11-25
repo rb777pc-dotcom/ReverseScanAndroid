@@ -22,7 +22,7 @@ sub_once(gradle, r'applicationId = ".*?"', 'applicationId = "com.reversescan.app
 sub_once(gradle, r'versionCode = \d+', 'versionCode = 12', "versionCode")
 sub_once(gradle, r'versionName = ".*?"', 'versionName = "0.9.3"', "versionName")
 
-sub_once(manifest, r'android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/reversescan_app_icon"', "launcher icon resource")
+sub_once(manifest, r'android:icon="(?:@mipmap/ic_launcher|@drawable/reversescan_app_icon)"', 'android:icon="@drawable/reversescan_app_icon"', "launcher icon resource")
 sub_once(strings, r'<string name="app_name">.*?</string>', '<string name="app_name">ReverseScan 3D</string>', "application label")
 if settings.exists():
     sub_once(settings, r'rootProject.name = ".*?"', 'rootProject.name = "ReverseScan-3D"', "Gradle root project name")

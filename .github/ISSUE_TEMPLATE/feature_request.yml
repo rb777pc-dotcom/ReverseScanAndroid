@@ -1,7 +1,6 @@
 name: Feature request
 description: Suggest an improvement for ReverseScan 3D
 title: "[Feature]: "
-labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
